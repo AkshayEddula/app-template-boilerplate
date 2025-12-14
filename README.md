@@ -1,50 +1,125 @@
-# Welcome to your Expo app 👋
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+# Resolution - Expo Starter Template
 
-## Get started
+A modern, production-ready starter template for building mobile applications with **Expo**, **React Native**, **Clerk Auth**, **Convex Backend**, and **NativeWind (Tailwind CSS)**.
 
-1. Install dependencies
+## 🚀 Features
 
+- **Full Stack Type-Safety**: End-to-end type safety with Convex and TypeScript.
+- **Authentication**: Pre-configured Authentication flow using **Clerk** (Sign Up, Sign In, Profile).
+- **Secure Backend**: Serverless backend with **Convex** for real-time data and storage.
+- **Database**: Reactive database with direct hooks (`useQuery`, `useMutation`).
+- **Navigation**: File-based routing with **Expo Router**.
+- **Styling**: Utility-first styling with **NativeWind v4** (Tailwind CSS).
+- **Fonts**: Custom font injection strategy (Inter).
+- **Onboarding Flow**: Splash screen -> Auth -> Onboarding -> Tabs.
+
+## 🛠️ Tech Stack
+
+- **Framework**: [Expo SDK 52+](https://expo.dev)
+- **Navigation**: [Expo Router](https://docs.expo.dev/router/introduction/)
+- **Auth**: [Clerk](https://clerk.com/)
+- **Backend**: [Convex](https://convex.dev/)
+- **Styling**: [NativeWind](https://www.nativewind.dev/)
+- **Animations**: [Reanimated](https://docs.swmansion.com/react-native-reanimated/)
+
+## 📋 Prerequisites
+
+- Node.js (v18+)
+- npm or yarn or bun
+- Expo Go app on your physical device or an Android/iOS Emulator.
+
+## ⚙️ Installation & Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd resolution
+   ```
+
+2. **Install Dependencies**
    ```bash
    npm install
    ```
 
-2. Start the app
-
+3. **Environment Setup**
+   Create a `.env` file in the root directory by copying the example:
    ```bash
-   npx expo start
+   cp .env.example .env.local
+   ```
+   
+   Fill in the required keys:
+   - **Convex**: Run `npx convex dev`. This will configure your project and give you the Deployment URL.
+   - **Clerk**: Create a Clerk application. Get the Publishable Key.
+     - **Important**: Go to Clerk Dashboard -> JWT Templates -> New Template -> Select "Convex".
+     - Copy the **Issuer Domain** URL and paste it into `EXPO_PUBLIC_CLERK_JWT_ISSUER_DOMAIN`.
+     - Update your Convex `auth.config.ts` (if relevant) or ensure the environment variable matches the issuer.
+
+   ```env
+   # .env.local
+   CONVEX_DEPLOYMENT=...
+   EXPO_PUBLIC_CONVEX_URL=...
+   EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+   EXPO_PUBLIC_CLERK_JWT_ISSUER_DOMAIN=https://...
    ```
 
-In the output, you'll find options to open the app in a
+4. **Start the Backend**
+   In a separate terminal, run the Convex development server:
+   ```bash
+   npx convex dev
+   ```
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+5. **Start the App**
+   ```bash
+   npx expo start -c
+   ```
+   Press `i` for iOS simulator, `a` for Android emulator, or scan the QR code with Expo Go.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## 📂 Project Structure
 
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+resolution/
+├── app/                  # Expo Router pages
+│   ├── (auth)/           # Authentication routes (login, signup, onboarding)
+│   ├── (tabs)/           # Main app tabs (home, profile, etc.)
+│   └── _layout.tsx       # Root layout & providers (Clerk+Convex)
+├── components/           # Reusable UI components
+├── convex/               # Backend functions & schema
+│   ├── schema.ts         # Database schema definition
+│   └── users.ts          # User-related API functions
+├── assets/               # Images and Fonts
+└── tailwind.config.js    # Tailwind configuration
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🔒 Authentication Flow
 
-## Learn more
+The app uses a robust Conditional Routing strategy in `app/_layout.tsx`:
+1. **Unauthenticated**: Redirects to `/(auth)/onboarding` or `/(auth)/sign-up`.
+2. **Authenticated (New)**: Redirects to `/(auth)/onboardingSteps` to complete profile.
+3. **Authenticated (Onboarded)**: Redirects to `/(tabs)` (Home).
 
-To learn more about developing your project with Expo, look at the following resources:
+## 💾 Database Schema
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+The core user model is defined in `convex/schema.ts`:
+```typescript
+users: defineTable({
+    tokenIdentifier: v.string(), // Links to Clerk ID
+    email: v.optional(v.string()),
+    name: v.string(),
+    is_onboarded: v.boolean(),
+    ...
+}).index("by_token", ["tokenIdentifier"])
+```
 
-## Join the community
+## 🎨 Customizing
 
-Join our community of developers creating universal apps.
+- **Fonts**: Add new font files to `assets/fonts/` and update `app/_layout.tsx` + `tailwind.config.js`.
+- **Colors**: Update `tailwind.config.js` theme to add your brand colors.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 🤝 Contributing
+
+1. Fork the repo
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
