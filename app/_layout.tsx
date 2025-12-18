@@ -2,7 +2,7 @@ import { ClerkLoaded, ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import { ConvexReactClient, useMutation, useQuery } from 'convex/react';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { useFonts } from 'expo-font';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -74,15 +74,33 @@ function InitialLayout() {
   const [isUserInitialized, setIsUserInitialized] = useState(false);
 
   const [fontsLoaded] = useFonts({
-    "Inter-Black": require("../assets/fonts/Inter_24pt-Black.ttf"),
-    "Inter-Bold": require("../assets/fonts/Inter_24pt-Bold.ttf"),
-    "Inter-ExtraBold": require("../assets/fonts/Inter_24pt-ExtraBold.ttf"),
-    "Inter-ExtraLight": require("../assets/fonts/Inter_24pt-ExtraLight.ttf"),
+    "GeneralSans-Extralight": require("../assets/fonts/generalsans/GeneralSans-Extralight.otf"),
+    "GeneralSans-Light": require("../assets/fonts/generalsans/GeneralSans-Light.otf"),
+    "GeneralSans-Regular": require("../assets/fonts/generalsans/GeneralSans-Regular.otf"),
+    "GeneralSans-Medium": require("../assets/fonts/generalsans/GeneralSans-Medium.otf"),
+    "GeneralSans-Semibold": require("../assets/fonts/generalsans/GeneralSans-Semibold.otf"),
+    "GeneralSans-Bold": require("../assets/fonts/generalsans/GeneralSans-Bold.otf"),
+
+    "ClashDisplay-Extralight": require("../assets/fonts/clashdisplay/ClashDisplay-Extralight.otf"),
+    "ClashDisplay-Light": require("../assets/fonts/clashdisplay/ClashDisplay-Light.otf"),
+    "ClashDisplay-Regular": require("../assets/fonts/clashdisplay/ClashDisplay-Regular.otf"),
+    "ClashDisplay-Medium": require("../assets/fonts/clashdisplay/ClashDisplay-Medium.otf"),
+    "ClashDisplay-Semibold": require("../assets/fonts/clashdisplay/ClashDisplay-Semibold.otf"),
+    "ClashDisplay-Bold": require("../assets/fonts/clashdisplay/ClashDisplay-Bold.otf"),
+
+    "BricolageGrotesk-Extralight": require("../assets/fonts/bricolage/BricolageGrotesque-ExtraLight.ttf"),
+    "BricolageGrotesk-Light": require("../assets/fonts/bricolage/BricolageGrotesque-Light.ttf"),
+    "BricolageGrotesk-Regular": require("../assets/fonts/bricolage/BricolageGrotesque-Regular.ttf"),
+    "BricolageGrotesk-Medium": require("../assets/fonts/bricolage/BricolageGrotesque-Medium.ttf"),
+    "BricolageGrotesk-Semibold": require("../assets/fonts/bricolage/BricolageGrotesque-SemiBold.ttf"),
+    "BricolageGrotesk-Bold": require("../assets/fonts/bricolage/BricolageGrotesque-Bold.ttf"),
+
+    "Inter-Extralight": require("../assets/fonts/Inter_24pt-ExtraLight.ttf"),
     "Inter-Light": require("../assets/fonts/Inter_24pt-Light.ttf"),
-    "Inter-Medium": require("../assets/fonts/Inter_24pt-Medium.ttf"),
     "Inter-Regular": require("../assets/fonts/Inter_24pt-Regular.ttf"),
-    "Inter-SemiBold": require("../assets/fonts/Inter_24pt-SemiBold.ttf"),
-    "Inter-Thin": require("../assets/fonts/Inter_24pt-Thin.ttf"),
+    "Inter-Medium": require("../assets/fonts/Inter_24pt-Medium.ttf"),
+    "Inter-Semibold": require("../assets/fonts/Inter_24pt-SemiBold.ttf"),
+    "Inter-Bold": require("../assets/fonts/Inter_24pt-Bold.ttf"),
   });
 
   useEffect(() => {
@@ -114,6 +132,7 @@ function InitialLayout() {
     if (!isLoaded || !isUserInitialized) return;
 
     const inAuthGroup = segments[0] === "(auth)";
+    const inLegalGroup = segments[0] === "(legal)";
 
     if (isSignedIn) {
       if (user === undefined || user === null) return;
@@ -122,16 +141,16 @@ function InitialLayout() {
 
       if (!isOnboarded) {
         // Redirect to onboarding if not onboarded and not already there
-        const isAlreadyOnboarding = segments[1] === "onboardingSteps";
+        const isAlreadyOnboarding = segments[1] === "onboarding-steps";
         if (!isAlreadyOnboarding) {
-          router.replace("/onboardingSteps");
+          router.replace("/(auth)/onboarding-steps");
         }
       } else if (inAuthGroup) {
         // User is signed in and onboarded, but in auth group (login/signup pages) -> go to tabs
         router.replace("/(tabs)");
       }
-    } else if (!isSignedIn && !inAuthGroup) {
-      // Not signed in and not in auth group -> go to login
+    } else if (!isSignedIn && !inAuthGroup && !inLegalGroup) {
+      // Not signed in and not in auth group or legal group -> go to login
       router.replace("/(auth)/onboarding");
     }
   }, [isSignedIn, isLoaded, isUserInitialized, user, segments]);
@@ -147,13 +166,15 @@ function InitialLayout() {
 
   // If not signed in and trying to access protected route, show nothing (while redirecting)
   const inAuthGroup = segments[0] === "(auth)";
-  if (!isSignedIn && !inAuthGroup) {
+  const inLegalGroup = segments[0] === "(legal)";
+
+  if (!isSignedIn && !inAuthGroup && !inLegalGroup) {
     return null;
   }
 
   // If signed in but not onboarded, and not on onboarding steps, show nothing (while redirecting)
   if (isSignedIn && user && !user.is_onboarded) {
-    if (segments[1] !== "onboardingSteps") return null;
+    if (segments[1] !== "onboarding-steps") return null;
   }
 
   // If signed in and onboarded, but still on auth pages (while redirecting to tabs)
@@ -163,5 +184,22 @@ function InitialLayout() {
 
 
 
-  return <Slot />;
+  // Inside your InitialLayout or RootLayout where you have the <Slot /> or <Stack />
+  return (
+    <Stack>
+      {/* The main tab group */}
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+      {/* The creation modal */}
+      <Stack.Screen
+        name="create"
+        options={{
+          presentation: 'modal',
+          headerShown: false,
+          // On iOS, this makes it a "card" style modal that doesn't cover the whole screen
+          gestureEnabled: true,
+        }}
+      />
+    </Stack>
+  );
 }

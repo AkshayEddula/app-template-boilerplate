@@ -1,55 +1,56 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { GlassContainer, GlassView } from 'expo-glass-effect';
+import { Image, StyleSheet, View } from 'react-native';
 
-export default function ExploreScreen() {
+export default function GlassContainerDemo() {
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Explore</Text>
-      <Text style={styles.subtitle}>
-        Discover new features and content
-      </Text>
-
-      {[1, 2, 3, 4, 5].map((item) => (
-        <View key={item} style={styles.card}>
-          <Text style={styles.cardTitle}>Feature {item}</Text>
-          <Text style={styles.cardText}>
-            This is a protected feature that requires authentication.
-          </Text>
-        </View>
-      ))}
-    </ScrollView>
+    <View style={styles.container}>
+      <Image
+        style={styles.backgroundImage}
+        source={{
+          uri: 'https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=400&h=600&fit=crop',
+        }}
+      />
+      <GlassContainer spacing={10} style={styles.containerStyle}>
+        <GlassView style={styles.glass1} isInteractive />
+        <GlassView style={styles.glass2} />
+        <GlassView style={styles.glass3} />
+      </GlassContainer>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: '#fff',
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 8,
+  backgroundImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 20,
+  containerStyle: {
+    position: 'absolute',
+    top: 200,
+    left: 50,
+    width: 250,
+    height: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
-  card: {
-    backgroundColor: '#f5f5f5',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 12,
+  glass1: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
+  glass2: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
-  cardText: {
-    fontSize: 14,
-    color: '#666',
+  glass3: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
 });

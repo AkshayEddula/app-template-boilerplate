@@ -9,8 +9,14 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as categories from "../categories.js";
 import type * as http from "../http.js";
-import type * as messages from "../messages.js";
+import type * as resolutionTemplates from "../resolutionTemplates.js";
+import type * as resolutions from "../resolutions.js";
+import type * as seedCategroies from "../seedCategroies.js";
+import type * as seedTemplates from "../seedTemplates.js";
+import type * as userCategoryStats from "../userCategoryStats.js";
+import type * as userResolutions from "../userResolutions.js";
 import type * as users from "../users.js";
 
 import type {
@@ -21,8 +27,14 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  categories: typeof categories;
   http: typeof http;
-  messages: typeof messages;
+  resolutionTemplates: typeof resolutionTemplates;
+  resolutions: typeof resolutions;
+  seedCategroies: typeof seedCategroies;
+  seedTemplates: typeof seedTemplates;
+  userCategoryStats: typeof userCategoryStats;
+  userResolutions: typeof userResolutions;
   users: typeof users;
 }>;
 
