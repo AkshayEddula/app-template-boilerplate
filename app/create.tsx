@@ -3,6 +3,7 @@ import { Id } from '@/convex/_generated/dataModel';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from 'convex/react';
 import { GlassView } from 'expo-glass-effect';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -198,12 +199,14 @@ export default function CreateResolution() {
     const SectionHeader = ({ title, icon }: { title: string, icon: any }) => (
         <View className="flex-row items-center gap-2 mb-4 mt-8">
             <Ionicons name={icon} size={14} color="white" style={{ opacity: 0.5 }} />
-            <Text className="text-white/50 font-generalsans-bold text-[9px] uppercase tracking-[2px]">{title}</Text>
+            <Text className="text-white/50 font-generalsans-bold text-[9px] uppercase tracking-[-0.1px]">{title}</Text>
         </View>
     );
 
     return (
-        <View className="flex-1 bg-[#3A7AFE]">
+        <LinearGradient colors={["#2F6CF6",
+            "#3A7AFE",
+            "#5C94FF",]} style={{ flex: 1 }} className="flex-1 bg-[#3A7AFE]">
             <SafeAreaView className="flex-1" edges={['top']}>
                 {/* Header */}
                 <View className="flex-row justify-between items-center px-6 pb-0 py-4">
@@ -313,8 +316,8 @@ export default function CreateResolution() {
                             isInteractive
                             tintColor="#3A7AFE"
                             style={{
-                                borderRadius: 16,
-                                height: 54,
+                                borderRadius: 20,
+                                height: 56,
                                 borderWidth: 1,
                                 borderColor: 'rgba(255,255,255,0.1)',
                                 overflow: 'hidden',
@@ -345,8 +348,8 @@ export default function CreateResolution() {
                         <View className="flex-row gap-2">
                             {['daily', 'weekdays', 'weekends', 'custom'].map((f) => (
                                 <TouchableOpacity key={f} onPress={() => setFrequency(f)} className="flex-1">
-                                    <GlassView isInteractive glassEffectStyle="regular" tintColor={frequency === f ? '#FFFFFF' : '#3A7AFE'} style={{ borderRadius: 14, padding: 10, alignItems: 'center', overflow: 'hidden' }}>
-                                        <Text className={`font-generalsans-bold capitalize text-[10px] tracking-tight ${frequency === f ? 'text-[#3A7AFE]' : 'text-white'}`}>{f}</Text>
+                                    <GlassView isInteractive glassEffectStyle="regular" tintColor={frequency === f ? '#FFFFFF' : '#3A7AFE'} style={{ borderRadius: 16, padding: 14, alignItems: 'center', overflow: 'hidden' }}>
+                                        <Text className={`font-generalsans-semibold capitalize text-[10px] ${frequency === f ? 'text-[#3A7AFE]' : 'text-white'}`}>{f}</Text>
                                     </GlassView>
                                 </TouchableOpacity>
                             ))}
@@ -370,7 +373,7 @@ export default function CreateResolution() {
                                 { key: 'time_based', label: 'Timer / Duration', icon: 'time' },
                             ].map((t) => (
                                 <TouchableOpacity key={t.key} onPress={() => setTrackingType(t.key)}>
-                                    <GlassView isInteractive glassEffectStyle="regular" tintColor={trackingType === t.key ? '#FFFFFF' : '#3A7AFE'} style={{ borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
+                                    <GlassView isInteractive glassEffectStyle="regular" tintColor={trackingType === t.key ? '#FFFFFF' : '#3A7AFE'} style={{ borderRadius: 18, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
                                         <Ionicons name={t.icon as any} size={18} color={trackingType === t.key ? '#3A7AFE' : 'white'} />
                                         <Text className={`font-generalsans-bold text-sm tracking-tight ${trackingType === t.key ? 'text-[#3A7AFE]' : 'text-white'}`}>{t.label}</Text>
                                     </GlassView>
@@ -440,6 +443,6 @@ export default function CreateResolution() {
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
-        </View>
+        </LinearGradient>
     );
 }

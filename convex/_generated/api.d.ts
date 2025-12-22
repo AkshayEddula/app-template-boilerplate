@@ -10,11 +10,13 @@
 
 import type * as auth from "../auth.js";
 import type * as categories from "../categories.js";
+import type * as fixData from "../fixData.js";
 import type * as http from "../http.js";
 import type * as resolutionTemplates from "../resolutionTemplates.js";
 import type * as resolutions from "../resolutions.js";
 import type * as seedCategroies from "../seedCategroies.js";
 import type * as seedTemplates from "../seedTemplates.js";
+import type * as stats from "../stats.js";
 import type * as userCategoryStats from "../userCategoryStats.js";
 import type * as userResolutions from "../userResolutions.js";
 import type * as users from "../users.js";
@@ -28,11 +30,13 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   categories: typeof categories;
+  fixData: typeof fixData;
   http: typeof http;
   resolutionTemplates: typeof resolutionTemplates;
   resolutions: typeof resolutions;
   seedCategroies: typeof seedCategroies;
   seedTemplates: typeof seedTemplates;
+  stats: typeof stats;
   userCategoryStats: typeof userCategoryStats;
   userResolutions: typeof userResolutions;
   users: typeof users;

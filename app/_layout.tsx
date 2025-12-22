@@ -189,6 +189,7 @@ function InitialLayout() {
     <Stack>
       {/* The main tab group */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
 
       {/* The creation modal */}
       <Stack.Screen

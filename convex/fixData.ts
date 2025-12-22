@@ -3,21 +3,22 @@ import { mutation } from "./_generated/server";
 export const resetAndSeed = mutation({
     args: {},
     handler: async (ctx) => {
-        // --- STEP 1: CLEAN UP OLD DATA ---
-        // We delete old categories/stages to prevent schema mismatch errors
+        // --- STEP 1: WIPE OLD DATA ---
+        console.log("Deleting old categories...");
         const oldCategories = await ctx.db.query("categories").collect();
         for (const cat of oldCategories) {
             await ctx.db.delete(cat._id);
         }
 
+        console.log("Deleting old stages...");
         const oldStages = await ctx.db.query("characterStages").collect();
         for (const stage of oldStages) {
             await ctx.db.delete(stage._id);
         }
 
-        console.log("Old data wiped. Starting seed...");
+        // --- STEP 2: INSERT NEW DATA (With Characters) ---
+        console.log("Seeding new data...");
 
-        // --- STEP 2: INSERT CATEGORIES (With Characters) ---
         const categories = [
             {
                 key: "health" as const,
@@ -70,7 +71,7 @@ export const resetAndSeed = mutation({
             await ctx.db.insert("categories", cat);
         }
 
-        // --- STEP 3: INSERT CHARACTER STAGES (20 Rows) ---
+        // --- STEP 3: SEED STAGES ---
         const stageConfigs = [
             { stage: 1, name: "Seed", minXp: 0, msg: "Every journey starts small." },
             { stage: 2, name: "Rise", minXp: 501, msg: "Momentum is building." },
@@ -82,21 +83,18 @@ export const resetAndSeed = mutation({
 
         for (const key of categoryKeys) {
             for (const config of stageConfigs) {
-                // Placeholder image URL - you will replace these with real links later
-                const placeholderUrl = `https://i.pinimg.com/1200x/b5/2b/cc/b52bcc299ce26819fe7b47444c8dffab.jpg`;
-
                 await ctx.db.insert("characterStages", {
                     categoryKey: key,
                     stage: config.stage,
                     stageName: config.name,
                     minXp: config.minXp,
                     message: config.msg,
-                    staticImageUrl: placeholderUrl,
+                    staticImageUrl: `https://i.pinimg.com/1200x/b5/2b/cc/b52bcc299ce26819fe7b47444c8dffab.jpg`,
                     videoUrl: undefined,
                 });
             }
         }
 
-        return "Success! Database reset and 20 character stages created.";
+        return "Database fixed! Old data deleted, new characters created.";
     },
 });
