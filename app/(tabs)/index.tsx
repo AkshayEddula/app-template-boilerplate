@@ -159,10 +159,10 @@ export default function HomeScreen() {
               <View className="mr-1">
                 <HugeiconsIcon
                   icon={Fire02Icon}
-                  color={
-                    user?.currentStreak ? "#FF9C00" : "rgba(255,255,255,0.6)"
-                  }
+                  fill={user?.currentStreak ? "#FEF3C7" : "transparent"} // Pale gold
+                  color={user?.currentStreak ? "#D97706" : "#A1A1AA"} // Dark goldenrod
                   size={22}
+                  strokeWidth={1}
                   pointerEvents="none"
                 />
               </View>
