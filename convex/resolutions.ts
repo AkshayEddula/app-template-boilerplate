@@ -1,8 +1,19 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel"; // <--- ADD THIS IMPORT
+import { Id } from "./_generated/dataModel";
 
-const DAILY_MAX_XP = 100;
+// --- GAMIFICATION CONSTANTS ---
+const DAILY_MAX_BASE_XP = 100;
+const XP_PER_COMPLETION = 10;
+const XP_DAILY_STREAK = 10;
+
+const MILESTONE_BONUSES: Record<number, number> = {
+  3: 50,
+  7: 100,
+  14: 200,
+  30: 500,
+  60: 1000,
+};
 
 // --- HELPERS ---
 
@@ -62,7 +73,7 @@ export const logProgress = mutation({
     value: v.number(),
   },
   handler: async (ctx, args) => {
-    // 1. Get the resolution details
+    // 1. Get Resolution
     const resolution = await ctx.db.get(args.userResolutionId);
     if (!resolution) throw new Error("Resolution not found");
 
@@ -77,7 +88,7 @@ export const logProgress = mutation({
       isCompleted = args.value >= (resolution.targetCount || 0);
     }
 
-    // 3. Update or Insert Daily Log
+    // 3. Update Daily Log
     const existingLog = await ctx.db
       .query("dailyLogs")
       .withIndex("by_resolution_date", (q) =>
@@ -102,12 +113,13 @@ export const logProgress = mutation({
       });
     }
 
-    // ---------------------------------------------------------
-    // 4. STREAK ENGINE (Fixed Types)
-    // ---------------------------------------------------------
-
+    let instantBonusXp = 0;
     if (isCompleted && !wasAlreadyCompleted) {
-      // A. Update Resolution Streak
+      instantBonusXp += XP_PER_COMPLETION;
+    }
+
+    // 4. Streak Engine (Updated with Best Streak Logic)
+    if (isCompleted && !wasAlreadyCompleted) {
       const lastResDate = resolution.lastCompletedDate;
       const previousScheduled = getPreviousScheduledDate(resolution, args.date);
 
@@ -121,13 +133,17 @@ export const logProgress = mutation({
         newResStreak = 1;
       }
 
+      // Calculate Best Streak
+      const currentBest = resolution.bestStreak || 0;
+      const newBestStreak = Math.max(newResStreak, currentBest);
+
       await ctx.db.patch(resolution._id, {
         currentStreak: newResStreak,
+        bestStreak: newBestStreak, // Save new record
         lastCompletedDate: args.date,
       });
 
-      // B. Update Global User Streak
-      // FIX: Cast string ID to typed ID so TS knows it's a User
+      // Global User Streak
       const userId = resolution.userId as Id<"users">;
       const user = await ctx.db.get(userId);
 
@@ -136,13 +152,23 @@ export const logProgress = mutation({
         const yesterday = getYesterday(args.date);
 
         let newUserStreak = user.currentStreak || 0;
+        let streakIncremented = false;
 
         if (lastUserDate === args.date) {
           // Already counted today
         } else if (lastUserDate === yesterday) {
           newUserStreak += 1;
+          streakIncremented = true;
         } else {
           newUserStreak = 1;
+          streakIncremented = true;
+        }
+
+        if (streakIncremented) {
+          instantBonusXp += XP_DAILY_STREAK;
+          if (MILESTONE_BONUSES[newUserStreak]) {
+            instantBonusXp += MILESTONE_BONUSES[newUserStreak];
+          }
         }
 
         await ctx.db.patch(user._id, {
@@ -152,10 +178,7 @@ export const logProgress = mutation({
       }
     }
 
-    // ---------------------------------------------------------
-    // 5. XP CALCULATION
-    // ---------------------------------------------------------
-
+    // 5. XP Calculation
     const categoryResolutions = await ctx.db
       .query("userResolutions")
       .withIndex("by_user_and_category", (q) =>
@@ -186,7 +209,9 @@ export const logProgress = mutation({
     const totalCount = todaysResolutions.length;
     const completionPercentage =
       totalCount === 0 ? 0 : completedCount / totalCount;
-    const newDailyXp = Math.round(completionPercentage * DAILY_MAX_XP);
+    const currentBaseXpState = Math.round(
+      completionPercentage * DAILY_MAX_BASE_XP,
+    );
 
     const existingDailyStat = await ctx.db
       .query("dailyCategoryStats")
@@ -198,12 +223,27 @@ export const logProgress = mutation({
       )
       .first();
 
-    const previousXpForDay = existingDailyStat ? existingDailyStat.xpEarned : 0;
-    const xpDifference = newDailyXp - previousXpForDay;
+    let previousBaseXpState = 0;
+    if (existingDailyStat) {
+      const prevCompletedCount =
+        isCompleted && !wasAlreadyCompleted
+          ? completedCount - 1
+          : !isCompleted && wasAlreadyCompleted
+            ? completedCount + 1
+            : completedCount;
+
+      const prevPercentage =
+        totalCount === 0 ? 0 : prevCompletedCount / totalCount;
+      previousBaseXpState = Math.round(prevPercentage * DAILY_MAX_BASE_XP);
+    }
+
+    const baseXpDelta = currentBaseXpState - previousBaseXpState;
+    const totalXpChange = baseXpDelta + instantBonusXp;
+    const newTotalDailyXp = (existingDailyStat?.xpEarned || 0) + totalXpChange;
 
     if (existingDailyStat) {
       await ctx.db.patch(existingDailyStat._id, {
-        xpEarned: newDailyXp,
+        xpEarned: newTotalDailyXp,
         completedResolutionsCount: completedCount,
         totalResolutionsCount: totalCount,
       });
@@ -212,7 +252,7 @@ export const logProgress = mutation({
         userId: resolution.userId,
         categoryKey: resolution.categoryKey,
         date: args.date,
-        xpEarned: newDailyXp,
+        xpEarned: totalXpChange,
         completedResolutionsCount: completedCount,
         totalResolutionsCount: totalCount,
       });
@@ -227,25 +267,26 @@ export const logProgress = mutation({
       )
       .first();
 
+    let finalTotalXp = totalXpChange;
     if (userStats) {
+      finalTotalXp = userStats.totalXp + totalXpChange;
       await ctx.db.patch(userStats._id, {
-        totalXp: userStats.totalXp + xpDifference,
+        totalXp: finalTotalXp,
       });
     } else {
       await ctx.db.insert("userCategoryStats", {
         userId: resolution.userId,
         categoryKey: resolution.categoryKey,
-        totalXp: newDailyXp,
+        totalXp: finalTotalXp,
         currentStreak: 1,
       });
     }
 
     return {
       success: true,
-      newDailyXp,
-      totalCategoryXp: userStats
-        ? userStats.totalXp + xpDifference
-        : newDailyXp,
+      newDailyXp: newTotalDailyXp,
+      totalCategoryXp: finalTotalXp,
+      xpGainedNow: totalXpChange,
     };
   },
 });
@@ -271,5 +312,84 @@ export const getTodayLogs = query({
         q.eq("userId", user._id).eq("date", args.date),
       )
       .collect();
+  },
+});
+
+// convex/resolutions.ts
+
+// ... existing imports
+
+export const getResolutionAnalytics = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) return [];
+
+    const resolutions = await ctx.db
+      .query("userResolutions")
+      .withIndex("by_user_active", (q) =>
+        q.eq("userId", user._id).eq("isActive", true),
+      )
+      .collect();
+
+    // CHANGE: Fetch 30 days instead of 7
+    const last30Days: string[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      last30Days.push(d.toISOString().split("T")[0]);
+    }
+
+    const analyticsData = await Promise.all(
+      resolutions.map(async (res) => {
+        const history = await Promise.all(
+          last30Days.map(async (date) => {
+            const log = await ctx.db
+              .query("dailyLogs")
+              .withIndex("by_resolution_date", (q) =>
+                q.eq("userResolutionId", res._id).eq("date", date),
+              )
+              .first();
+
+            let rawValue = 0;
+            if (log) {
+              if (res.trackingType === "yes_no") {
+                rawValue = log.isCompleted ? 100 : 0;
+              } else if (res.trackingType === "count_based") {
+                const target = res.targetCount || 1;
+                rawValue = (log.currentValue / target) * 100;
+              } else if (res.trackingType === "time_based") {
+                const targetMin = res.targetTime || 1;
+                const targetSec = targetMin * 60;
+                rawValue = (log.currentValue / targetSec) * 100;
+              }
+            }
+
+            const value = Math.max(0, Math.min(rawValue, 100));
+            const dateObj = new Date(date);
+            // Return numeric day for graph labels
+            const dayLabel = dateObj.getDate().toString();
+
+            return { date, day: dayLabel, value };
+          }),
+        );
+
+        return {
+          ...res,
+          history, // Now contains 30 items
+        };
+      }),
+    );
+
+    return analyticsData;
   },
 });

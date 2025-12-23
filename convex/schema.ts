@@ -11,12 +11,11 @@ export default defineSchema({
     is_onboarded: v.boolean(),
     is_agreed_terms: v.boolean(),
 
-    // NEW: Global Streak Tracking
+    // Global Streak Tracking
     currentStreak: v.optional(v.number()),
     lastCompletedDate: v.optional(v.string()), // "YYYY-MM-DD"
   }).index("by_token", ["tokenIdentifier"]),
 
-  // ... (categories, characterStages, userCategoryStats tables remain the same) ...
   categories: defineTable({
     key: v.union(
       v.literal("health"),
@@ -123,8 +122,9 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
 
-    // NEW: Per-Resolution Streak
+    // --- STREAK TRACKING ---
     currentStreak: v.optional(v.number()),
+    bestStreak: v.optional(v.number()), // <--- ADDED THIS
     lastCompletedDate: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
@@ -132,7 +132,6 @@ export default defineSchema({
     .index("by_user_and_category", ["userId", "categoryKey"])
     .index("by_user_active", ["userId", "isActive"]),
 
-  // ... (dailyLogs, dailyCategoryStats remain the same) ...
   dailyLogs: defineTable({
     userResolutionId: v.id("userResolutions"),
     userId: v.string(),
