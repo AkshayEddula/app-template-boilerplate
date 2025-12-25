@@ -66,6 +66,79 @@ function getYesterday(dateString: string) {
 
 // --- MUTATIONS ---
 
+export const create = mutation({
+  args: {
+    categoryKey: v.union(
+      v.literal("health"),
+      v.literal("mind"),
+      v.literal("career"),
+      v.literal("life"),
+      v.literal("fun"),
+    ),
+    title: v.string(),
+    description: v.optional(v.string()),
+    trackingType: v.union(
+      v.literal("yes_no"),
+      v.literal("time_based"),
+      v.literal("count_based"),
+    ),
+    targetTime: v.optional(v.number()),
+    targetCount: v.optional(v.number()),
+    countUnit: v.optional(v.string()),
+    frequencyType: v.union(
+      v.literal("daily"),
+      v.literal("weekdays"),
+      v.literal("weekends"),
+      v.literal("custom"),
+      v.literal("x_days_per_week"),
+    ),
+    customDays: v.optional(v.array(v.number())),
+    daysPerWeek: v.optional(v.number()),
+    isActive: v.boolean(),
+    templateId: v.optional(v.id("resolutionTemplates")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const resolutionId = await ctx.db.insert("userResolutions", {
+      userId: user._id,
+      categoryKey: args.categoryKey,
+      title: args.title,
+      description: args.description,
+      trackingType: args.trackingType,
+      targetTime: args.targetTime,
+      targetCount: args.targetCount,
+      countUnit: args.countUnit,
+      frequencyType: args.frequencyType,
+      customDays: args.customDays,
+      daysPerWeek: args.daysPerWeek,
+      isActive: args.isActive,
+      startDate: Date.now(),
+      templateId: args.templateId,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    if (!user.is_onboarded) {
+      await ctx.db.patch(user._id, {
+        is_onboarded: true,
+      });
+    }
+
+    return resolutionId;
+  },
+});
+
 export const logProgress = mutation({
   args: {
     userResolutionId: v.id("userResolutions"),
@@ -118,7 +191,7 @@ export const logProgress = mutation({
       instantBonusXp += XP_PER_COMPLETION;
     }
 
-    // 4. Streak Engine (Updated with Best Streak Logic)
+    // 4. Streak Engine
     if (isCompleted && !wasAlreadyCompleted) {
       const lastResDate = resolution.lastCompletedDate;
       const previousScheduled = getPreviousScheduledDate(resolution, args.date);
@@ -139,7 +212,7 @@ export const logProgress = mutation({
 
       await ctx.db.patch(resolution._id, {
         currentStreak: newResStreak,
-        bestStreak: newBestStreak, // Save new record
+        bestStreak: newBestStreak,
         lastCompletedDate: args.date,
       });
 
@@ -291,6 +364,8 @@ export const logProgress = mutation({
   },
 });
 
+// --- QUERIES ---
+
 export const getTodayLogs = query({
   args: { date: v.string() },
   handler: async (ctx, args) => {
@@ -315,9 +390,92 @@ export const getTodayLogs = query({
   },
 });
 
-// convex/resolutions.ts
+export const listActive = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
 
-// ... existing imports
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) return [];
+
+    const rawResolutions = await ctx.db
+      .query("userResolutions")
+      .withIndex("by_user_active", (q) =>
+        q.eq("userId", user._id).eq("isActive", true),
+      )
+      .collect();
+
+    // --- APPLY STREAK CHECK (FIX) ---
+    const today = new Date().toISOString().split("T")[0];
+    return rawResolutions.map((res) => {
+      const lastCompleted = res.lastCompletedDate;
+      let displayStreak = res.currentStreak || 0;
+
+      if (displayStreak > 0 && lastCompleted !== today) {
+        const previousScheduled = getPreviousScheduledDate(res, today);
+        if (lastCompleted !== previousScheduled) {
+          displayStreak = 0;
+        }
+      }
+      return { ...res, currentStreak: displayStreak };
+    });
+  },
+});
+
+export const listByCategory = query({
+  args: {
+    categoryKey: v.union(
+      v.literal("health"),
+      v.literal("mind"),
+      v.literal("career"),
+      v.literal("life"),
+      v.literal("fun"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) return [];
+
+    const rawResolutions = await ctx.db
+      .query("userResolutions")
+      .withIndex("by_user_and_category", (q) =>
+        q.eq("userId", user._id).eq("categoryKey", args.categoryKey),
+      )
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    // --- APPLY STREAK CHECK (FIX) ---
+    const today = new Date().toISOString().split("T")[0];
+    return rawResolutions.map((res) => {
+      const lastCompleted = res.lastCompletedDate;
+      let displayStreak = res.currentStreak || 0;
+
+      if (displayStreak > 0 && lastCompleted !== today) {
+        const previousScheduled = getPreviousScheduledDate(res, today);
+        if (lastCompleted !== previousScheduled) {
+          displayStreak = 0;
+        }
+      }
+      return { ...res, currentStreak: displayStreak };
+    });
+  },
+});
 
 export const getResolutionAnalytics = query({
   args: {},
@@ -341,8 +499,9 @@ export const getResolutionAnalytics = query({
       )
       .collect();
 
-    // CHANGE: Fetch 30 days instead of 7
     const last30Days: string[] = [];
+    const today = new Date().toISOString().split("T")[0];
+
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
@@ -351,6 +510,17 @@ export const getResolutionAnalytics = query({
 
     const analyticsData = await Promise.all(
       resolutions.map(async (res) => {
+        // --- APPLY STREAK CHECK (FIX) ---
+        const lastCompleted = res.lastCompletedDate;
+        let displayStreak = res.currentStreak || 0;
+
+        if (displayStreak > 0 && lastCompleted !== today) {
+          const previousScheduled = getPreviousScheduledDate(res, today);
+          if (lastCompleted !== previousScheduled) {
+            displayStreak = 0;
+          }
+        }
+
         const history = await Promise.all(
           last30Days.map(async (date) => {
             const log = await ctx.db
@@ -376,7 +546,6 @@ export const getResolutionAnalytics = query({
 
             const value = Math.max(0, Math.min(rawValue, 100));
             const dateObj = new Date(date);
-            // Return numeric day for graph labels
             const dayLabel = dateObj.getDate().toString();
 
             return { date, day: dayLabel, value };
@@ -385,11 +554,126 @@ export const getResolutionAnalytics = query({
 
         return {
           ...res,
-          history, // Now contains 30 items
+          currentStreak: displayStreak,
+          history,
         };
       }),
     );
 
     return analyticsData;
+  },
+});
+
+// --- EDIT & DELETE MUTATIONS ---
+
+export const edit = mutation({
+  args: {
+    id: v.id("userResolutions"),
+    // All fields are optional to allow partial updates
+    categoryKey: v.optional(
+      v.union(
+        v.literal("health"),
+        v.literal("mind"),
+        v.literal("career"),
+        v.literal("life"),
+        v.literal("fun"),
+      ),
+    ),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    trackingType: v.optional(
+      v.union(
+        v.literal("yes_no"),
+        v.literal("time_based"),
+        v.literal("count_based"),
+      ),
+    ),
+    targetTime: v.optional(v.number()),
+    targetCount: v.optional(v.number()),
+    countUnit: v.optional(v.string()),
+    frequencyType: v.optional(
+      v.union(
+        v.literal("daily"),
+        v.literal("weekdays"),
+        v.literal("weekends"),
+        v.literal("custom"),
+        v.literal("x_days_per_week"),
+      ),
+    ),
+    customDays: v.optional(v.array(v.number())),
+    daysPerWeek: v.optional(v.number()),
+    isActive: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    // 1. Fetch the existing resolution
+    const resolution = await ctx.db.get(args.id);
+
+    // 2. Security Check: Ensure resolution exists and belongs to this user
+    if (!resolution || resolution.userId !== user._id) {
+      throw new Error("Resolution not found or unauthorized");
+    }
+
+    // 3. Prepare updates (remove 'id' from the object)
+    const { id, ...updates } = args;
+
+    // 4. Update
+    await ctx.db.patch(id, {
+      ...updates,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const deleteResolution = mutation({
+  args: {
+    id: v.id("userResolutions"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    // 1. Fetch existing
+    const resolution = await ctx.db.get(args.id);
+
+    // 2. Security Check
+    if (!resolution || resolution.userId !== user._id) {
+      throw new Error("Resolution not found or unauthorized");
+    }
+
+    // 3. CLEAN UP: Delete associated Daily Logs to prevent orphaned data
+    // (Note: We keep 'dailyCategoryStats' and 'userCategoryStats' as those form the user's
+    // historical XP record, which they should keep even if they delete the specific task).
+    const logs = await ctx.db
+      .query("dailyLogs")
+      .withIndex("by_resolution_date", (q) => q.eq("userResolutionId", args.id))
+      .collect();
+
+    for (const log of logs) {
+      await ctx.db.delete(log._id);
+    }
+
+    // 4. Delete the Resolution
+    await ctx.db.delete(args.id);
   },
 });

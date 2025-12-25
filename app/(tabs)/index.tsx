@@ -3,7 +3,7 @@ import { LevelUpOverlay } from "@/components/homeComponents/LevelupOverlay";
 import { SquircleCard } from "@/components/homeComponents/SquircleCard";
 import { TrackingModal } from "@/components/homeComponents/TrackingModal";
 import { XPHeaderBadge } from "@/components/homeComponents/XpHeaderBadge";
-import { StreakModal } from "@/components/homeComponents/StreakModal"; // Import the new modal
+import { StreakModal } from "@/components/homeComponents/StreakModal";
 import { api } from "@/convex/_generated/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
@@ -19,6 +19,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import Animated, {
   runOnUI,
@@ -40,7 +41,8 @@ type Resolution = {
   targetTime?: number;
   customDays?: number[];
   daysPerWeek?: number;
-  currentStreak?: number; // Added to type
+  currentStreak?: number;
+  lastCompletedDate?: string;
 };
 
 const FILTER_DAYS = [
@@ -68,21 +70,27 @@ export default function HomeScreen() {
   const router = useRouter();
 
   // Queries
-  const user = useQuery(api.users.currentUser); // Need user for global streak
+  const user = useQuery(api.users.currentUser);
   const resolutions = useQuery(api.userResolutions.listActive);
   const todayStr = new Date().toISOString().split("T")[0];
   const todayLogs = useQuery(api.resolutions.getTodayLogs, { date: todayStr });
 
+  const isLoading = resolutions === undefined || todayLogs === undefined;
+
   // State
   const [selectedResolution, setSelectedResolution] =
     useState<Resolution | null>(null);
+
+  // --- NEW STATE: Tracks if the modal should be read-only ---
+  const [isModalReadOnly, setIsModalReadOnly] = useState(false);
+
   const [trackingModalVisible, setTrackingModalVisible] = useState(false);
   const [selectedDayFilter, setSelectedDayFilter] = useState("today");
 
   // New States
   const [levelUpVisible, setLevelUpVisible] = useState(false);
   const [collectionVisible, setCollectionVisible] = useState(false);
-  const [streakModalVisible, setStreakModalVisible] = useState(false); // Streak Modal State
+  const [streakModalVisible, setStreakModalVisible] = useState(false);
 
   const [levelUpData, setLevelUpData] = useState<{
     key: string;
@@ -141,12 +149,12 @@ export default function HomeScreen() {
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
         {/* --- HEADER --- */}
         <View className="px-6 pb-6 pt-2 flex-row justify-between items-center">
-          {/* STREAK BADGE (Updated to be interactive) */}
+          {/* STREAK BADGE */}
           <TouchableOpacity
             onPress={() => setStreakModalVisible(true)}
             activeOpacity={0.7}
           >
-            <View className="flex-row items-center  pl-2 pr-3 py-1.5 rounded-[36px]">
+            <View className="flex-row items-center pl-2 pr-3 py-1.5 rounded-[36px]">
               <GlassView
                 style={{
                   ...StyleSheet.absoluteFillObject,
@@ -159,8 +167,7 @@ export default function HomeScreen() {
               <View className="mr-1">
                 <HugeiconsIcon
                   icon={Fire02Icon}
-                  // fill={user?.currentStreak ? "#FEF3C7" : "transparent"} // Pale gold
-                  color={user?.currentStreak ? "#fff" : "#fff"} // Dark goldenrod
+                  color={user?.currentStreak ? "#fff" : "#fff"}
                   size={22}
                   strokeWidth={1}
                   pointerEvents="none"
@@ -174,7 +181,6 @@ export default function HomeScreen() {
 
           <View className="flex-row items-center justify-center gap-1">
             <View className="rounded-[32px]">
-              {/* Collection Button */}
               <GlassView
                 style={{
                   ...StyleSheet.absoluteFillObject,
@@ -264,34 +270,51 @@ export default function HomeScreen() {
           </GlassView>
         </View>
 
-        {/* --- LIST --- */}
-        <FlatList
-          key={selectedDayFilter}
-          data={sortedResolutions}
-          keyExtractor={(item) => item._id}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item, index }) => (
-            <SquircleCard
-              item={item}
-              index={index}
-              currentFilter={selectedDayFilter}
-              isCompleted={
-                todayLogs?.find((l) => l.userResolutionId === item._id)
-                  ?.isCompleted
-              }
-              onPress={() => {
-                setSelectedResolution(item);
-                setTrackingModalVisible(true);
-              }}
-            />
-          )}
-          ListEmptyComponent={
-            <Text className="text-white/60 text-center mt-20">
-              No goals found.
+        {/* --- LIST vs LOADING --- */}
+        {isLoading ? (
+          <View className="flex-1 justify-center items-center pb-20">
+            <ActivityIndicator size="large" color="#ffffff" />
+            <Text className="text-white/60 font-generalsans-medium mt-4 text-sm">
+              Loading your goals...
             </Text>
-          }
-        />
+          </View>
+        ) : (
+          <FlatList
+            key={selectedDayFilter}
+            data={sortedResolutions}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={{
+              paddingHorizontal: 20,
+              paddingBottom: 100,
+            }}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item, index }) => (
+              <SquircleCard
+                item={item}
+                index={index}
+                currentFilter={selectedDayFilter}
+                isCompleted={
+                  todayLogs?.find((l) => l.userResolutionId === item._id)
+                    ?.isCompleted
+                }
+                onPress={() => {
+                  const isAvailable = isTaskToday(item);
+                  setSelectedResolution(item);
+
+                  // --- FIX: Set ReadOnly if the task is not for today ---
+                  setIsModalReadOnly(!isAvailable);
+
+                  setTrackingModalVisible(true);
+                }}
+              />
+            )}
+            ListEmptyComponent={
+              <Text className="text-white/60 text-center mt-20 font-generalsans-medium">
+                No goals found.
+              </Text>
+            }
+          />
+        )}
       </SafeAreaView>
 
       {/* --- MODALS --- */}
@@ -299,6 +322,8 @@ export default function HomeScreen() {
         visible={trackingModalVisible}
         onClose={() => setTrackingModalVisible(false)}
         resolution={selectedResolution}
+        // --- PASS THE READ ONLY PROP ---
+        readOnly={isModalReadOnly}
         initialValue={
           selectedResolution
             ? todayLogs?.find(
@@ -324,7 +349,7 @@ export default function HomeScreen() {
         onClose={() => setCollectionVisible(false)}
       />
 
-      {/* NEW STREAK MODAL */}
+      {/* STREAK MODAL */}
       <StreakModal
         visible={streakModalVisible}
         onClose={() => setStreakModalVisible(false)}
