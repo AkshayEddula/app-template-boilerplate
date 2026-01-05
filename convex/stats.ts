@@ -1,5 +1,4 @@
 import { query } from "./_generated/server";
-import { v } from "convex/values";
 
 // 1. Get My Stats (Existing function)
 export const getMyStats = query({
@@ -33,15 +32,37 @@ export const getMyStats = query({
 
     const categories = ["health", "mind", "career", "life", "fun"];
 
+    const allStages = await ctx.db.query("characterStages").collect();
+
     return categories.map((catKey) => {
       const total = totalStats.find((s) => s.categoryKey === catKey);
       const daily = dailyStats.find((s) => s.categoryKey === catKey);
 
+      const currentXp = total?.totalXp || 0;
+
+      // Find current stage image
+      const catStages = allStages
+        .filter((s) => s.categoryKey === catKey)
+        .sort((a, b) => a.minXp - b.minXp); // Sort by minXp ascending
+
+      // Default to first stage if no XP
+      let currentStage = catStages[0];
+
+      // Find the highest stage where minXp <= currentXp
+      for (const stage of catStages) {
+        if (currentXp >= stage.minXp) {
+          currentStage = stage;
+        } else {
+          break; // Optimization: stops once we hit a stage higher than current XP
+        }
+      }
+
       return {
         categoryKey: catKey,
-        totalXp: total?.totalXp || 0,
+        totalXp: currentXp,
         todayXp: daily?.xpEarned || 0,
         currentStreak: total?.currentStreak || 0,
+        imageUrl: currentStage?.staticImageUrl?.replace(/\$0$/, "") || "",
       };
     });
   },
@@ -102,7 +123,7 @@ export const getAllCards = query({
         categoryKey: stage.categoryKey,
         stage: stage.stage,
         stageName: stage.stageName,
-        image: stage.staticImageUrl,
+        image: stage.staticImageUrl.replace(/\$0$/, ""),
         minXp: stage.minXp,
         maxXp: maxXp,
         isUnlocked: currentXp >= stage.minXp,

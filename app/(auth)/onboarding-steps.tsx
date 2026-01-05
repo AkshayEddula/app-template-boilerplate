@@ -1,12 +1,16 @@
+import { PaywallModal } from '@/components/Paywall';
+import { useSubscription } from '@/context/SubscriptionContext';
 import { api } from '@/convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from 'convex/react';
+import { GlassView } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -37,13 +41,13 @@ type TrackingType = 'yes_no' | 'time_based' | 'count_based';
 type FrequencyType = 'daily' | 'weekdays' | 'weekends' | 'custom' | 'x_days_per_week';
 
 // --- Theme Config ---
-const CATEGORY_CONFIG: Record<string, { icon: keyof typeof Ionicons.glyphMap }> = {
-    health: { icon: 'water' },
-    mind: { icon: 'prism' },
-    career: { icon: 'briefcase' },
-    life: { icon: 'compass' },
-    fun: { icon: 'color-palette' },
-    default: { icon: 'star' }
+const CATEGORY_CONFIG: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; bgColor: string }> = {
+    health: { icon: 'water', color: '#059669', bgColor: '#ECFDF5' }, // Emerald dark text, light bg
+    mind: { icon: 'prism', color: '#7C3AED', bgColor: '#F5F3FF' }, // Violet
+    career: { icon: 'briefcase', color: '#D97706', bgColor: '#FFFBEB' }, // Amber
+    life: { icon: 'compass', color: '#2563EB', bgColor: '#EFF6FF' }, // Blue
+    fun: { icon: 'color-palette', color: '#DB2777', bgColor: '#FDF2F8' }, // Pink
+    default: { icon: 'star', color: '#475569', bgColor: '#F8FAFC' } // Slate
 };
 
 // --- Reusable Components ---
@@ -63,23 +67,30 @@ const Skeleton = ({ width, height, style }: { width: number | string, height: nu
 
 const CustomInput = ({ value, onChangeText, placeholder, keyboardType = 'default', label, autoFocus }: any) => (
     <View className="mb-5">
-        <Text className="text-white/80 text-xs font-inter-bold uppercase tracking-widest mb-2 ml-1">{label}</Text>
-        <TextInput
-            value={value}
-            onChangeText={onChangeText}
-            placeholder={placeholder}
-            placeholderTextColor="rgba(255,255,255,0.5)"
-            keyboardType={keyboardType}
-            autoFocus={autoFocus}
-            style={{
-                textAlignVertical: 'center',
-                includeFontPadding: false,
-                paddingTop: Platform.OS === 'android' ? 12 : 16,
-                paddingBottom: Platform.OS === 'android' ? 12 : 16,
-            }}
-            className="bg-white/20 border border-white/30 rounded-2xl px-5 text-white font-inter-bold text-[18px]"
-            selectionColor="white"
-        />
+        <Text className="text-white/90 text-xs font-generalsans-bold uppercase tracking-widest mb-2 ml-1">{label}</Text>
+        <GlassView
+            glassEffectStyle="regular"
+            tintColor="#3A7AFE"
+            style={{ borderRadius: 16, height: 60, paddingHorizontal: 20, justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}
+        >
+            <TextInput
+                value={value}
+                onChangeText={onChangeText}
+                placeholder={placeholder}
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                keyboardType={keyboardType}
+                autoFocus={autoFocus}
+                style={{
+                    fontSize: 18,
+                    color: 'white',
+                    fontFamily: 'GeneralSans-Bold',
+                    textAlignVertical: 'center',
+                    includeFontPadding: false,
+                    height: '100%',
+                }}
+                selectionColor="white"
+            />
+        </GlassView>
     </View>
 );
 
@@ -97,13 +108,13 @@ const BigNumberInput = ({ value, onChangeText, suffix }: any) => (
                     margin: 0,
                     textAlignVertical: 'center'
                 }}
-                className="text-white font-bricolagegrotesk-bold text-7xl text-center min-w-[80px] h-[80px]"
+                className="text-white font-generalsans-bold text-7xl text-center min-w-[80px] h-[80px]"
                 placeholder="0"
                 placeholderTextColor="rgba(255,255,255,0.3)"
                 selectionColor="white"
                 autoFocus
             />
-            <Text className="text-white/50 font-inter-bold text-2xl mb-4 ml-2">{suffix}</Text>
+            <Text className="text-white/50 font-generalsans-bold text-2xl mb-4 ml-2">{suffix}</Text>
         </View>
         <View className="h-1 w-32 bg-white/20 rounded-full mt-4" />
     </View>
@@ -112,24 +123,29 @@ const BigNumberInput = ({ value, onChangeText, suffix }: any) => (
 const SelectionCard = ({ selected, onPress, title, subtitle, icon }: any) => {
     return (
         <TouchableOpacity onPress={onPress} activeOpacity={0.8} className="mb-3">
-            <Animated.View
-                layout={LinearTransition}
-                className={`flex-row items-center p-5 rounded-3xl border transition-all ${selected ? 'bg-white border-white' : 'bg-white/10 border-white/20'}`}
-                style={selected ? { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 } : {}}
+            <GlassView
+                glassEffectStyle="regular"
+                tintColor={selected ? "#FFFFFF" : "#3A7AFE"}
+                style={{ borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: selected ? 'white' : 'rgba(255,255,255,0.1)' }}
             >
-                <View className={`w-12 h-12 rounded-full items-center justify-center ${selected ? 'bg-[#3A7AFE]' : 'bg-white/20'}`}>
-                    <Ionicons name={icon} size={24} color={selected ? 'white' : 'white'} />
-                </View>
-                <View className="ml-4 flex-1">
-                    <Text className={`text-[17px] font-bricolagegrotesk-bold ${selected ? 'text-[#3A7AFE]' : 'text-white'}`}>{title}</Text>
-                    {subtitle && <Text className={`text-xs font-inter-medium mt-0.5 ${selected ? 'text-[#3A7AFE]/70' : 'text-blue-100/70'}`}>{subtitle}</Text>}
-                </View>
-                {selected && (
-                    <Animated.View entering={FadeIn.duration(200)}>
-                        <Ionicons name="checkmark-circle" size={26} color="#3A7AFE" />
-                    </Animated.View>
-                )}
-            </Animated.View>
+                <Animated.View
+                    layout={LinearTransition}
+                    className="flex-row items-center p-5"
+                >
+                    <View className={`w-12 h-12 rounded-full items-center justify-center ${selected ? 'bg-[#3A7AFE]' : 'bg-white/20'}`}>
+                        <Ionicons name={icon} size={24} color={selected ? 'white' : 'white'} />
+                    </View>
+                    <View className="ml-4 flex-1">
+                        <Text className={`text-[17px] font-generalsans-semibold ${selected ? 'text-[#3A7AFE]' : 'text-white'}`}>{title}</Text>
+                        {subtitle && <Text className={`text-xs font-generalsans-medium mt-0.5 ${selected ? 'text-[#3A7AFE]/70' : 'text-blue-100/70'}`}>{subtitle}</Text>}
+                    </View>
+                    {selected && (
+                        <Animated.View entering={FadeIn.duration(200)}>
+                            <Ionicons name="checkmark-circle" size={26} color="#3A7AFE" />
+                        </Animated.View>
+                    )}
+                </Animated.View>
+            </GlassView>
         </TouchableOpacity>
     );
 };
@@ -139,26 +155,32 @@ const SimpleDaySelector = ({ selectedDays, toggleDay }: { selectedDays: number[]
 
     return (
         <View className="mb-8 mt-6">
-            <Text className="text-white/70 text-xs font-inter-bold uppercase tracking-widest mb-4 ml-1">Select Days</Text>
+            <Text className="text-white/70 text-xs font-generalsans-bold uppercase tracking-widest mb-4 ml-1">Select Days</Text>
 
-            <View className="flex-row justify-between items-center bg-white/5 rounded-[24px] p-4 border border-white/10">
-                {days.map((day, idx) => {
-                    const isSelected = (selectedDays || []).includes(idx);
+            <GlassView
+                glassEffectStyle="regular"
+                tintColor="#3A7AFE"
+                style={{ borderRadius: 24, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', overflow: "hidden" }}
+            >
+                <View className="flex-row justify-between items-center">
+                    {days.map((day, idx) => {
+                        const isSelected = (selectedDays || []).includes(idx);
 
-                    return (
-                        <TouchableOpacity
-                            key={idx}
-                            onPress={() => toggleDay(idx)}
-                            activeOpacity={0.7}
-                            className={`w-10 h-10 rounded-full items-center justify-center ${isSelected ? 'bg-white' : 'bg-white/10'}`}
-                        >
-                            <Text className={`font-inter-bold text-xs ${isSelected ? 'text-[#3A7AFE]' : 'text-white/60'}`}>
-                                {day.slice(0, 1)}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                })}
-            </View>
+                        return (
+                            <TouchableOpacity
+                                key={idx}
+                                onPress={() => toggleDay(idx)}
+                                activeOpacity={0.7}
+                                className={`w-10 h-10 rounded-full items-center justify-center ${isSelected ? 'bg-white' : 'bg-white/10'}`}
+                            >
+                                <Text className={`font-generalsans-bold text-xs ${isSelected ? 'text-[#3A7AFE]' : 'text-white/60'}`}>
+                                    {day.slice(0, 1)}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            </GlassView>
         </View>
     );
 };
@@ -168,9 +190,11 @@ const SimpleDaySelector = ({ selectedDays, toggleDay }: { selectedDays: number[]
 export default function ResolutionOnboarding() {
     const router = useRouter();
     const { width } = useWindowDimensions();
+    const { isPremium } = useSubscription();
 
     const [step, setStep] = useState(1);
     const [submitting, setSubmitting] = useState(false);
+    const [showPaywall, setShowPaywall] = useState(false);
 
     // Data
     const categories = useQuery(api.categories.list);
@@ -237,7 +261,7 @@ export default function ResolutionOnboarding() {
         }
     };
 
-    const handleFinish = async () => {
+    const submitResolution = async () => {
         setSubmitting(true);
 
         // Map presets to actual day arrays for DB logic
@@ -268,6 +292,7 @@ export default function ResolutionOnboarding() {
                 isActive: true,
                 templateId: !isCustom ? selectedTemplate?._id : undefined,
             });
+
             router.replace('/(tabs)');
         } catch (error) {
             Alert.alert("Error", "Failed to create resolution");
@@ -277,10 +302,18 @@ export default function ResolutionOnboarding() {
         }
     };
 
+    const handleFinish = async () => {
+        if (!isPremium) {
+            setShowPaywall(true);
+        } else {
+            await submitResolution();
+        }
+    };
+
     const renderStep1_Categories = () => (
         <Animated.View entering={FadeInRight} exiting={FadeOutLeft}>
-            <Text className="text-[40px] font-bricolagegrotesk-bold text-white mb-2 leading-tight">Focus Area</Text>
-            <Text className="text-white/80 font-inter-medium text-lg mb-8">What do you want to improve?</Text>
+            <Text className="text-[40px] font-generalsans-semibold text-white mb-2 leading-tight">Focus Area</Text>
+            <Text className="text-white/80 font-generalsans-medium text-lg mb-8">What do you want to improve?</Text>
 
             <View className="flex-row flex-wrap justify-between gap-y-4">
                 {!categories ? (
@@ -295,14 +328,30 @@ export default function ResolutionOnboarding() {
                                 onPress={() => handleCategorySelect(cat.key)}
                                 activeOpacity={0.8}
                             >
-                                <Animated.View entering={FadeInDown.delay(index * 100).springify()} className="aspect-[4/5] bg-white/10 border border-white/20 rounded-[32px] p-6 justify-between overflow-hidden relative shadow-lg">
-                                    <View className="w-12 h-12 rounded-full bg-white/20 items-center justify-center border border-white/10 backdrop-blur-md">
-                                        <Ionicons name={config.icon} size={22} color="white" />
-                                    </View>
-                                    <View>
-                                        <Text className="text-white font-bricolagegrotesk-bold text-xl tracking-tight">{cat.name}</Text>
-                                        <Text className="text-white/60 text-xs font-inter-medium mt-1 leading-4">{cat.description}</Text>
-                                    </View>
+                                <Animated.View entering={FadeInDown.delay(index * 100).springify()}>
+                                    <GlassView
+                                        glassEffectStyle="regular"
+                                        tintColor="#3A7AFE"
+                                        style={{
+                                            borderRadius: 32,
+                                            overflow: 'hidden',
+                                            borderWidth: 1,
+                                            borderColor: 'rgba(255,255,255,0.1)'
+                                        }}
+                                    >
+                                        <View className="p-6 aspect-[4/5] justify-between relative">
+                                            {/* Colored background blob for depth */}
+
+
+                                            <View className="w-12 h-12 rounded-full bg-white/10 items-center justify-center border border-white/10">
+                                                <Ionicons name={config.icon} size={22} color="white" />
+                                            </View>
+                                            <View>
+                                                <Text className="text-white font-generalsans-semibold text-xl tracking-tight">{cat.name}</Text>
+                                                <Text className="text-white/60 text-xs font-generalsans-medium mt-1 leading-4">{cat.description}</Text>
+                                            </View>
+                                        </View>
+                                    </GlassView>
                                 </Animated.View>
                             </TouchableOpacity>
                         );
@@ -314,25 +363,31 @@ export default function ResolutionOnboarding() {
 
     const renderStep2_Templates = () => (
         <Animated.View entering={FadeInRight} exiting={FadeOutLeft}>
-            <Text className="text-3xl font-bricolagegrotesk-bold text-white mb-2">Select Goal</Text>
-            <Text className="text-white/80 font-inter-medium text-lg mb-6">Choose a template or create new.</Text>
+            <Text className="text-3xl font-generalsans-semibold text-white mb-2">Select Goal</Text>
+            <Text className="text-white/80 font-generalsans-medium text-lg mb-6">Choose a template or create new.</Text>
 
             <TouchableOpacity onPress={handleCustomResolution} className="mb-8" activeOpacity={0.8}>
-                <View className="bg-white rounded-[24px] p-5 flex-row items-center justify-between shadow-lg shadow-blue-900/20">
-                    <View className="flex-row items-center gap-4">
-                        <View className="w-12 h-12 rounded-full bg-[#3A7AFE]/10 items-center justify-center">
-                            <Ionicons name="add" size={28} color="#3A7AFE" />
+                <GlassView
+                    glassEffectStyle="regular"
+                    tintColor="#FFFFFF"
+                    style={{ borderRadius: 24, overflow: 'hidden' }}
+                >
+                    <View className="p-5 flex-row items-center justify-between">
+                        <View className="flex-row items-center gap-4">
+                            <View className="w-12 h-12 rounded-full bg-[#3A7AFE]/10 items-center justify-center">
+                                <Ionicons name="add" size={28} color="#3A7AFE" />
+                            </View>
+                            <View>
+                                <Text className="text-[#3A7AFE] font-generalsans-semibold text-lg">Create Custom</Text>
+                                <Text className="text-slate-400 text-xs font-generalsans-medium">Start from scratch</Text>
+                            </View>
                         </View>
-                        <View>
-                            <Text className="text-[#3A7AFE] font-bricolagegrotesk-bold text-lg">Create Custom</Text>
-                            <Text className="text-slate-400 text-xs">Start from scratch</Text>
-                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#3A7AFE" />
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#3A7AFE" />
-                </View>
+                </GlassView>
             </TouchableOpacity>
 
-            <Text className="text-white/50 text-xs font-inter-bold uppercase tracking-widest mb-4 ml-2">Recommended</Text>
+            <Text className="text-white/50 text-xs font-generalsans-bold uppercase tracking-widest mb-4 ml-2">Recommended</Text>
 
             {!templates ? (
                 [1, 2, 3].map(i => <Skeleton key={i} width="100%" height={80} style={{ marginBottom: 12 }} />)
@@ -365,8 +420,8 @@ export default function ResolutionOnboarding() {
                 </View>
             )}
 
-            <Text className="text-3xl font-bricolagegrotesk-bold text-white mb-2">Commitment</Text>
-            <Text className="text-white/80 font-inter-medium text-lg mb-6">How often will you do this?</Text>
+            <Text className="text-3xl font-generalsans-semibold text-white mb-2">Commitment</Text>
+            <Text className="text-white/80 font-generalsans-medium text-lg mb-6">How often will you do this?</Text>
 
             <SelectionCard title="Every Day" subtitle="Build a daily habit" icon="infinite" selected={frequencyType === 'daily'} onPress={() => setFrequencyType('daily')} />
             <SelectionCard title="Weekdays" subtitle="Monday to Friday" icon="briefcase-outline" selected={frequencyType === 'weekdays'} onPress={() => setFrequencyType('weekdays')} />
@@ -380,8 +435,14 @@ export default function ResolutionOnboarding() {
             )}
 
             <View className="mt-8">
-                <TouchableOpacity onPress={() => setStep(4)} className="bg-white rounded-2xl h-16 items-center justify-center shadow-lg shadow-black/10">
-                    <Text className="text-[#3A7AFE] font-bricolagegrotesk-bold text-xl">Continue</Text>
+                <TouchableOpacity onPress={() => setStep(4)}>
+                    <GlassView
+                        glassEffectStyle="regular"
+                        tintColor="#FFFFFF"
+                        style={{ borderRadius: 16, height: 64, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+                    >
+                        <Text className="text-[#3A7AFE] font-generalsans-semibold text-xl">Continue</Text>
+                    </GlassView>
                 </TouchableOpacity>
             </View>
         </Animated.View>
@@ -389,8 +450,8 @@ export default function ResolutionOnboarding() {
 
     const renderStep4_Tracking = () => (
         <Animated.View entering={FadeInRight} exiting={FadeOutLeft}>
-            <Text className="text-3xl font-bricolagegrotesk-bold text-white mb-2">Tracking</Text>
-            <Text className="text-white/80 font-inter-medium text-lg mb-6">How do you measure success?</Text>
+            <Text className="text-3xl font-generalsans-semibold text-white mb-2">Tracking</Text>
+            <Text className="text-white/80 font-generalsans-medium text-lg mb-6">How do you measure success?</Text>
 
             <SelectionCard title="Simple Check" subtitle="Yes or No" icon="checkmark-circle-outline" selected={trackingType === 'yes_no'} onPress={() => setTrackingType('yes_no')} />
             <SelectionCard title="Time Duration" subtitle="Track minutes" icon="timer-outline" selected={trackingType === 'time_based'} onPress={() => setTrackingType('time_based')} />
@@ -411,8 +472,14 @@ export default function ResolutionOnboarding() {
             )}
 
             <View className="mt-8">
-                <TouchableOpacity onPress={() => setStep(5)} className="bg-white rounded-2xl h-16 items-center justify-center shadow-lg shadow-black/10">
-                    <Text className="text-[#3A7AFE] font-bricolagegrotesk-bold text-xl">Review Quest</Text>
+                <TouchableOpacity onPress={() => setStep(5)}>
+                    <GlassView
+                        glassEffectStyle="regular"
+                        tintColor="#FFFFFF"
+                        style={{ borderRadius: 16, height: 64, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+                    >
+                        <Text className="text-[#3A7AFE] font-generalsans-semibold text-xl">Review Quest</Text>
+                    </GlassView>
                 </TouchableOpacity>
             </View>
         </Animated.View>
@@ -420,60 +487,105 @@ export default function ResolutionOnboarding() {
 
     const renderStep5_Summary = () => {
         const catConfig = selectedCategory ? CATEGORY_CONFIG[selectedCategory] : CATEGORY_CONFIG.default;
+        const textColor = catConfig.color; // Use the darker category color for text
 
         return (
             <Animated.View entering={FadeInRight} exiting={FadeOutLeft} className="flex-1 justify-center items-center pb-12">
-                <Text className="text-white/70 font-inter-bold uppercase tracking-[4px] mb-8 text-xs">System Initialization</Text>
-
-                {/* HUD CARD */}
-                <View className="w-full bg-white/10 border border-white/20 rounded-[40px] p-1 backdrop-blur-2xl relative">
-                    <View className="bg-gradient-to-b from-white/5 to-transparent rounded-[36px] p-6 items-center">
-
-                        {/* GLOWING CORE ICON */}
-                        <View className="w-24 h-24 rounded-full border-4 border-white/10 items-center justify-center mb-6 relative">
-                            {/* Inner Glow */}
-                            <View className="absolute inset-0 bg-white/20 blur-xl rounded-full" />
-                            <Ionicons name={catConfig.icon} size={42} color="white" />
-                        </View>
-
-                        {/* TITLE */}
-                        <Text className="text-white font-bricolagegrotesk-bold text-4xl text-center leading-10 mb-2">
-                            {isCustom ? customTitle || 'New Quest' : selectedTemplate?.title}
+                <View className="items-center mb-8">
+                    <Text className="text-[32px] font-generalsans-bold tracking-tighter text-white text-center leading-tight shadow-sm shadow-blue-500/50">
+                        Levora
+                    </Text>
+                    <View className="mt-2 bg-white/10 px-3 py-1 rounded-full border border-white/10">
+                        <Text className="text-[#FFD700] text-[10px] font-generalsans-bold tracking-[2px] uppercase">
+                            Your 2026 Reset
                         </Text>
-                        <Text className="text-blue-100 font-inter-medium text-sm mb-8 uppercase tracking-widest opacity-60">
-                            {selectedCategory}
-                        </Text>
-
-                        {/* DATA GRID */}
-                        <View className="w-full flex-row gap-4 mb-6">
-                            <View className="flex-1 bg-black/20 p-4 rounded-2xl border border-white/5 items-center justify-center">
-                                <Text className="text-white/40 text-[10px] font-inter-bold uppercase mb-2">Frequency</Text>
-                                <Ionicons name="calendar" size={20} color="white" style={{ marginBottom: 4, opacity: 0.8 }} />
-                                <Text className="text-white font-inter-bold text-xs text-center">
-                                    {frequencyType === 'daily' ? 'Daily' :
-                                        frequencyType === 'weekdays' ? 'Weekdays' :
-                                            frequencyType === 'weekends' ? 'Weekends' : 'Custom'}
-                                </Text>
-                            </View>
-                            <View className="flex-1 bg-black/20 p-4 rounded-2xl border border-white/5 items-center justify-center">
-                                <Text className="text-white/40 text-[10px] font-inter-bold uppercase mb-2">Target</Text>
-                                <Ionicons name="radio-button-on" size={20} color="white" style={{ marginBottom: 4, opacity: 0.8 }} />
-                                <Text className="text-white font-inter-bold text-xs text-center">
-                                    {trackingType === 'yes_no' ? 'Complete' : trackingType === 'time_based' ? `${targetTime} Mins` : `${targetCount} ${countUnit}`}
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* SYSTEM STATUS / XP */}
-                        <View className="w-full bg-white/10 rounded-xl py-3 px-4 flex-row items-center justify-between border border-white/10">
-                            <View className="flex-row items-center gap-2">
-                                <View className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                                <Text className="text-white/70 text-[10px] font-inter-bold uppercase">Quest Active</Text>
-                            </View>
-                            <Text className="text-white font-bricolagegrotesk-bold text-sm">+50 XP REWARD</Text>
-                        </View>
-
                     </View>
+
+                    {/* Social Proof */}
+                    <View className="flex-row items-center mt-5 bg-black/10 px-3 py-1.5 rounded-full border border-white/5 mx-auto">
+                        <View className="flex-row -space-x-1.5 mr-2">
+                            {[12, 5, 8].map((i) => (
+                                <Image
+                                    key={i}
+                                    source={{ uri: `https://i.pravatar.cc/150?img=${i}` }}
+                                    style={{ width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: '#3A7AFE' }}
+                                />
+                            ))}
+                        </View>
+                        <Text className="text-blue-100/80 text-[10px] font-generalsans-medium">
+                            <Text className="text-white font-generalsans-bold">12k+</Text> starting now
+                        </Text>
+                    </View>
+                </View>
+
+                {/* SQUIRCLE STYLE CARD */}
+                <View style={{ width: '100%', borderRadius: 40, overflow: 'hidden', shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20 }}>
+                    {/* Glass container using the category background color as tint */}
+                    <GlassView
+                        glassEffectStyle="regular"
+                        tintColor={catConfig.bgColor}
+                        style={{ width: '100%' }}
+                    >
+                        <View className="p-8 justify-between min-h-[420px]">
+
+                            {/* Top Section */}
+                            <View>
+                                <View className="flex-row justify-between items-start mb-6">
+                                    <View className="bg-white/60 px-4 py-2 rounded-full border border-white/20 backdrop-blur-md">
+                                        <Text style={{ color: textColor }} className="text-xs font-generalsans-bold uppercase tracking-wider opacity-80">
+                                            {selectedCategory}
+                                        </Text>
+                                    </View>
+                                    <View className="w-14 h-14 rounded-full bg-white/60 items-center justify-center border border-white/20">
+                                        <Ionicons name={catConfig.icon} size={24} color={textColor} />
+                                    </View>
+                                </View>
+
+                                <Text style={{ color: '#1E293B', textShadowColor: 'rgba(255,255,255,0.5)', textShadowRadius: 1 }} className="font-generalsans-bold text-[42px] leading-[46px] mb-8">
+                                    {isCustom ? customTitle || 'New Resolution' : selectedTemplate?.title}
+                                </Text>
+                            </View>
+
+                            {/* Stats Section - Removed Circles, using clean layout */}
+                            <View className="gap-4">
+                                <View className="flex-row items-center gap-4 border-b border-black/5 pb-4">
+                                    <View className="w-10 h-10 rounded-full bg-white/50 items-center justify-center">
+                                        <Ionicons name="calendar-outline" size={20} color={textColor} />
+                                    </View>
+                                    <View>
+                                        <Text className="text-slate-500 text-[10px] font-generalsans-bold uppercase">Frequency</Text>
+                                        <Text className="text-slate-800 font-generalsans-bold text-lg">
+                                            {frequencyType === 'daily' ? 'Daily' :
+                                                frequencyType === 'weekdays' ? 'Weekdays' :
+                                                    frequencyType === 'weekends' ? 'Weekends' : 'Custom Days'}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <View className="flex-row items-center gap-4 pb-2">
+                                    <View className="w-10 h-10 rounded-full bg-white/50 items-center justify-center">
+                                        <Ionicons name="radio-button-on" size={20} color={textColor} />
+                                    </View>
+                                    <View>
+                                        <Text className="text-slate-500 text-[10px] font-generalsans-bold uppercase">Goal Target</Text>
+                                        <Text className="text-slate-800 font-generalsans-bold text-lg">
+                                            {trackingType === 'yes_no' ? 'Check In' : trackingType === 'time_based' ? `${targetTime} Minutes` : `${targetCount} ${countUnit}`}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* Footer / XP */}
+                            <View className="mt-6 pt-6 border-t border-black/5 flex-row items-center justify-between">
+                                <View className="flex-row items-center gap-2">
+                                    <View className="w-2 h-2 rounded-full bg-emerald-500" />
+                                    <Text className="text-slate-600 font-generalsans-bold text-xs uppercase">Resolution Ready</Text>
+                                </View>
+                                <Text style={{ color: textColor }} className="font-generalsans-bold text-sm bg-white/50 px-3 py-1 rounded-lg overflow-hidden">+50 XP</Text>
+                            </View>
+
+                        </View>
+                    </GlassView>
                 </View>
 
                 {/* Confirm Button */}
@@ -481,16 +593,21 @@ export default function ResolutionOnboarding() {
                     <TouchableOpacity
                         onPress={handleFinish}
                         disabled={submitting}
-                        className="bg-white rounded-2xl h-16 items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.3)]"
                     >
-                        {submitting ? (
-                            <ActivityIndicator color="#3A7AFE" />
-                        ) : (
-                            <Text className="text-[#3A7AFE] font-bricolagegrotesk-bold text-xl">Initialize Quest</Text>
-                        )}
+                        <GlassView
+                            glassEffectStyle="regular"
+                            tintColor="#FFFFFF"
+                            style={{ borderRadius: 24, height: 72, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' }}
+                        >
+                            {submitting ? (
+                                <ActivityIndicator color="#3A7AFE" />
+                            ) : (
+                                <Text className="text-[#3A7AFE] font-generalsans-semibold text-xl">Initialize Resolution</Text>
+                            )}
+                        </GlassView>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setStep(4)} className="mt-6 items-center">
-                        <Text className="text-white/50 font-inter-bold text-xs uppercase tracking-widest">Reconfigure</Text>
+                        <Text className="text-white/50 font-generalsans-bold text-xs uppercase tracking-widest">Reconfigure</Text>
                     </TouchableOpacity>
                 </View>
             </Animated.View>
@@ -536,14 +653,26 @@ export default function ResolutionOnboarding() {
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, paddingTop: 10 }}
                     >
-                        {step === 1 && renderStep1_Categories()}
-                        {step === 2 && renderStep2_Templates()}
-                        {step === 3 && renderStep3_Frequency()}
-                        {step === 4 && renderStep4_Tracking()}
-                        {step === 5 && renderStep5_Summary()}
+                        <View className="w-full max-w-[500px] self-center">
+                            {step === 1 && renderStep1_Categories()}
+                            {step === 2 && renderStep2_Templates()}
+                            {step === 3 && renderStep3_Frequency()}
+                            {step === 4 && renderStep4_Tracking()}
+                            {step === 5 && renderStep5_Summary()}
+                        </View>
                     </ScrollView>
                 </KeyboardAvoidingView>
             </SafeAreaView>
+
+            <PaywallModal
+                visible={showPaywall}
+                onClose={() => {
+                    setShowPaywall(false);
+                    submitResolution();
+                }}
+                onCancel={() => setShowPaywall(false)}
+                isHardPaywall={true}
+            />
         </View>
     );
 }

@@ -93,7 +93,7 @@ export const SquircleCard = ({
       entering={FadeInDown.delay(index * 60)
         .duration(DURATION_SLOW)
         .easing(SMOOTH_EASING)}
-      layout={LinearTransition.springify().damping(18)}
+      layout={LinearTransition.duration(300)}
       className="mb-4"
     >
       <TouchableOpacity

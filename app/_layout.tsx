@@ -1,11 +1,12 @@
-import { ClerkLoaded, ClerkProvider, useAuth } from '@clerk/clerk-expo';
-import { ConvexReactClient, useMutation, useQuery } from 'convex/react';
-import { ConvexProviderWithClerk } from 'convex/react-clerk';
-import { useFonts } from 'expo-font';
-import { Stack, useRouter, useSegments } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { SubscriptionProvider } from "@/context/SubscriptionContext";
+import { ClerkLoaded, ClerkProvider, useAuth } from "@clerk/clerk-expo";
+import { ConvexReactClient, useMutation, useQuery } from "convex/react";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { useFonts } from "expo-font";
+import { Stack, useRouter, useSegments } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
 import { api } from "../convex/_generated/api"; // Ensure this path is correct
 import "../global.css";
 
@@ -15,7 +16,7 @@ const tokenCache = {
     try {
       return await SecureStore.getItemAsync(key);
     } catch (err) {
-      console.error('SecureStore get error:', err);
+      console.error("SecureStore get error:", err);
       return null;
     }
   },
@@ -23,7 +24,7 @@ const tokenCache = {
     try {
       return await SecureStore.setItemAsync(key, value);
     } catch (err) {
-      console.error('SecureStore set error:', err);
+      console.error("SecureStore set error:", err);
     }
   },
 };
@@ -31,14 +32,14 @@ const tokenCache = {
 // 2. Convex Client
 const convex = new ConvexReactClient(
   process.env.EXPO_PUBLIC_CONVEX_URL as string,
-  { unsavedChangesWarning: false }
+  { unsavedChangesWarning: false },
 );
 
 export default function RootLayout() {
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
   if (!publishableKey) {
-    throw new Error('Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY');
+    throw new Error("Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY");
   }
 
   return (
@@ -52,8 +53,10 @@ function ConvexWrapper() {
   return (
     <ClerkLoaded>
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        {/* We replace direct <Slot/> with our logic component */}
-        <InitialLayout />
+        {/* 👇 Wrap InitialLayout with SubscriptionProvider */}
+        <SubscriptionProvider>
+          <InitialLayout />
+        </SubscriptionProvider>
       </ConvexProviderWithClerk>
     </ClerkLoaded>
   );
@@ -151,12 +154,17 @@ function InitialLayout() {
       }
     } else if (!isSignedIn && !inAuthGroup && !inLegalGroup) {
       // Not signed in and not in auth group or legal group -> go to login
-      router.replace("/(auth)/onboarding");
+      router.replace("/(auth)/sign-up");
     }
   }, [isSignedIn, isLoaded, isUserInitialized, user, segments]);
 
   // Show loading indicator until we have initialized and (if signed in) loaded user data
-  if (!isLoaded || !isUserInitialized || (isSignedIn && (user === undefined || user === null)) || !fontsLoaded) {
+  if (
+    !isLoaded ||
+    !isUserInitialized ||
+    (isSignedIn && (user === undefined || user === null)) ||
+    !fontsLoaded
+  ) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#0000ff" />
@@ -182,8 +190,6 @@ function InitialLayout() {
     return null;
   }
 
-
-
   // Inside your InitialLayout or RootLayout where you have the <Slot /> or <Stack />
   return (
     <Stack>
@@ -195,7 +201,7 @@ function InitialLayout() {
       <Stack.Screen
         name="create"
         options={{
-          presentation: 'modal',
+          presentation: "modal",
           headerShown: false,
           // On iOS, this makes it a "card" style modal that doesn't cover the whole screen
           gestureEnabled: true,

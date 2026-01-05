@@ -1,13 +1,14 @@
+import { CharacterCard } from "@/components/homeComponents/CharacterCard";
 import { api } from "@/convex/_generated/api";
 import { Ionicons } from "@expo/vector-icons";
 import {
+  ChampionIcon,
   Fire02Icon,
   LaurelWreathLeft01Icon,
   LaurelWreathRight01Icon,
   LockKeyIcon,
   SunCloudAngledZap01Icon,
   Target02Icon,
-  ChampionIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 import { useQuery } from "convex/react";
@@ -30,11 +31,12 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
-  runOnUI,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle, Path, Line as SvgLine } from "react-native-svg";
-import { CharacterCard } from "@/components/homeComponents/CharacterCard";
+import {
+  scheduleOnUI,
+} from "react-native-worklets";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -145,6 +147,20 @@ export default function AnalyticsScreen() {
   const router = useRouter();
   const [currentTab, setCurrentTab] = useState<MainTab>("analytics");
 
+  // Track which tabs have been visited to lazy-load them
+  const [loadedTabs, setLoadedTabs] = useState({
+    analytics: true,
+    vault: false,
+    challenge: false,
+  });
+
+  const handleTabChange = (key: MainTab) => {
+    setCurrentTab(key);
+    if (!loadedTabs[key]) {
+      setLoadedTabs((prev) => ({ ...prev, [key]: true }));
+    }
+  };
+
   return (
     <View className="flex-1 bg-[#3A7AFE]">
       <StatusBar
@@ -154,7 +170,7 @@ export default function AnalyticsScreen() {
       />
       <SafeAreaView edges={["top"]} className="flex-1">
         {/* --- HEADER --- */}
-        <View className="px-6 pt-4 pb-2 flex-row items-center justify-between z-50">
+        <View className="w-full max-w-[600px] self-center px-6 pt-4 pb-2 flex-row items-center justify-between z-50">
           <TouchableOpacity
             onPress={() => router.back()}
             className="w-11 h-11 items-center justify-center rounded-2xl bg-white/20 active:bg-white/30 border border-white/20"
@@ -168,17 +184,17 @@ export default function AnalyticsScreen() {
         </View>
 
         {/* --- MAIN TAB SWITCHER --- */}
-        <View className="px-6 mt-4 mb-2 z-40">
+        <View className="w-full max-w-[600px] self-center px-6 mt-4 mb-2 z-40">
           <GlassTabs
             tabs={MAIN_TABS}
             activeKey={currentTab}
-            onTabChange={(k) => setCurrentTab(k as MainTab)}
+            onTabChange={(k) => handleTabChange(k as MainTab)}
           />
         </View>
 
         {/* --- CONTENT AREA --- */}
-        {/* Using display: 'none' to keep tabs mounted and prevent refetching */}
-        <View className="flex-1">
+        <View className="flex-1 w-full max-w-[600px] self-center">
+          {/* Analytics: Always loaded */}
           <View
             style={{
               flex: 1,
@@ -188,22 +204,24 @@ export default function AnalyticsScreen() {
             <AnalyticsView />
           </View>
 
+          {/* Vault: Lazy loaded, then kept alive */}
           <View
             style={{
               flex: 1,
               display: currentTab === "vault" ? "flex" : "none",
             }}
           >
-            <VaultView />
+            {loadedTabs.vault && <VaultView />}
           </View>
 
+          {/* Challenge: Lazy loaded, then kept alive */}
           <View
             style={{
               flex: 1,
               display: currentTab === "challenge" ? "flex" : "none",
             }}
           >
-            <ChallengeView />
+            {loadedTabs.challenge && <ChallengeView />}
           </View>
         </View>
       </SafeAreaView>
@@ -343,9 +361,12 @@ function VaultView() {
         }}
         columnWrapperStyle={{ gap: GAP }}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={3}
+        removeClippedSubviews={Platform.OS === "android"}
         renderItem={({ item, index }) => (
           <Animated.View
-            entering={FadeInDown.delay(index * 50).duration(500)}
             style={{ width: CARD_WIDTH }}
           >
             <VaultCardWrapper item={item} width={CARD_WIDTH} />
@@ -675,13 +696,14 @@ function VaultCardWrapper({ item, width }: { item: any; width: number }) {
           scale={0.5}
           isEquipped={isEquipped}
           isCompleted={isCompleted}
+          imageUrl={item.image}
         />
       </View>
 
       {!item.isUnlocked && (
         <View className="absolute inset-0 items-center justify-center z-10">
           <GlassView
-            glassEffectStyle="dark"
+            glassEffectStyle="regular"
             style={{
               width: 48,
               height: 48,
@@ -725,9 +747,9 @@ function GlassTabs({
 
   useEffect(() => {
     const idx = tabs.findIndex((t) => t.key === activeKey);
-    runOnUI(() => {
+    scheduleOnUI(() => {
       selectedIndex.value = idx;
-    })();
+    });
   }, [activeKey]);
 
   const indicatorPosition = useAnimatedStyle(() => {
@@ -839,9 +861,9 @@ function ResolutionStatsCard({
   const completionRate =
     displayHistory.length > 0
       ? Math.round(
-          displayHistory.reduce((sum: number, h: any) => sum + h.value, 0) /
-            displayHistory.length,
-        )
+        displayHistory.reduce((sum: number, h: any) => sum + h.value, 0) /
+        displayHistory.length,
+      )
       : 0;
 
   const GRAPH_HEIGHT = 110;

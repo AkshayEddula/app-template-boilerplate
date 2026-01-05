@@ -22,12 +22,26 @@
         },
         "preview": {
             "distribution": "internal",
+            "env": {
+                "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "appl_AbhIEsCaStuNCuNvBYKHCnPdjAn",
+                "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_oLwukHHrarojRdHLMUZnoZfPhIQ",
+                "EXPO_PUBLIC_CONVEX_URL": "https://patient-sturgeon-371.convex.cloud",
+                "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_b3JnYW5pYy1nbnUtNzAuY2xlcmsuYWNjb3VudHMuZGV2JA",
+                "EXPO_PUBLIC_CLERK_JWT_ISSUER_DOMAIN": "https://organic-gnu-70.clerk.accounts.dev"
+            },
             "ios": {
                 "simulator": true
             }
         },
         "production": {
-            "autoIncrement": true
+            "autoIncrement": true,
+            "env": {
+                "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "appl_AbhIEsCaStuNCuNvBYKHCnPdjAn",
+                "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_oLwukHHrarojRdHLMUZnoZfPhIQ",
+                "EXPO_PUBLIC_CONVEX_URL": "https://patient-sturgeon-371.convex.cloud",
+                "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_b3JnYW5pYy1nbnUtNzAuY2xlcmsuYWNjb3VudHMuZGV2JA",
+                "EXPO_PUBLIC_CLERK_JWT_ISSUER_DOMAIN": "https://organic-gnu-70.clerk.accounts.dev"
+            }
         },
         "simulator": {
             "ios": {

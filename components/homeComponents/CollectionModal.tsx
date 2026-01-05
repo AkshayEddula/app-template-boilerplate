@@ -218,6 +218,7 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
                                 exiting={FadeOut.duration(200)}
                             >
                                 <CharacterCard
+                                    imageUrl={item.imageUrl}
                                     categoryKey={item.categoryKey}
                                     xp={item.totalXp}
                                     scale={SCALE_FACTOR}

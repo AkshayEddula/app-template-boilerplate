@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image"; // Updated import
 import { LinearGradient } from "expo-linear-gradient";
-import { Dimensions, ImageBackground, Text, View } from "react-native";
+import { useState } from "react";
+import { ActivityIndicator, Dimensions, Text, View } from "react-native";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
-// --- DATA ---
+// ... (Keep constants: CATEGORY_ICONS, CHARACTER_NAMES, etc.) ...
 
 const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   health: "heart",
@@ -49,14 +51,14 @@ const CATEGORY_COLORS: Record<string, string> = {
   default: "#94A3B8", // Slate
 };
 
-const STAGES = [
+export const STAGES = [
   { stage: 1, name: "Seed", minXp: 0 },
   { stage: 2, name: "Rise", minXp: 501 },
   { stage: 3, name: "Flow", minXp: 1501 },
   { stage: 4, name: "Ascend", minXp: 3501 },
 ];
 
-const getCurrentStageInfo = (xp: number) => {
+export const getCurrentStageInfo = (xp: number) => {
   let current = STAGES[0];
   let next = STAGES[1];
 
@@ -71,17 +73,21 @@ const getCurrentStageInfo = (xp: number) => {
 
 export const CharacterCard = ({
   categoryKey,
+  imageUrl,
   xp,
   scale = 1,
   isEquipped = false,
   isCompleted = false,
 }: {
   categoryKey: string;
+  imageUrl: string;
   xp: number;
   scale?: number;
   isEquipped?: boolean;
   isCompleted?: boolean;
 }) => {
+  const [isLoading, setIsLoading] = useState(true); // Default to true to show loader immediately
+
   const { current, next } = getCurrentStageInfo(xp);
   const color = CATEGORY_COLORS[categoryKey] || CATEGORY_COLORS.default;
   const name = CHARACTER_NAMES[categoryKey] || "Character";
@@ -94,9 +100,6 @@ export const CharacterCard = ({
   const progressPercent =
     Math.min(Math.max((xp - rangeStart) / (rangeEnd - rangeStart), 0), 1) * 100;
   const xpRemaining = next ? next.minXp - xp : 0;
-
-  const imageUrl =
-    "https://i.pinimg.com/1200x/10/47/75/1047757c6958d2a4146d0f09028dc713.jpg";
 
   // Card Dimensions
   const CARD_WIDTH = SCREEN_WIDTH * 0.9;
@@ -132,26 +135,39 @@ export const CharacterCard = ({
       >
         {/* 1. FRAME */}
         <View
-          className="flex-1 rounded-[40px] overflow-hidden bg-black"
-          style={{ borderWidth: 1, borderColor: borderColor }}
+          className="flex-1 rounded-[40px] overflow-hidden bg-black relative"
         >
-          <ImageBackground
-            source={{ uri: imageUrl }}
-            style={{ width: "100%", height: "100%" }}
-            resizeMode="cover"
-          >
-            {/* 2. GRADIENT */}
-            <LinearGradient
-              colors={[
-                "transparent",
-                "rgba(0,0,0,0.2)",
-                "rgba(0,0,0,0.8)",
-                "#000000",
-              ]}
-              locations={[0, 0.5, 0.75, 1]}
-              style={{ position: "absolute", width: "100%", height: "100%" }}
-            />
+          {/* IMAGE LAYER */}
+          <Image
+            source={imageUrl}
+            style={{ position: 'absolute', width: "100%", height: "100%" }}
+            contentFit="cover"
+            transition={500}
+            onLoadStart={() => setIsLoading(true)}
+            onLoad={() => setIsLoading(false)}
+          />
 
+          {/* LOADING LAYER */}
+          {isLoading && (
+            <View className="absolute inset-0 items-center justify-center bg-zinc-900 z-10">
+              <ActivityIndicator size="small" color={color} />
+            </View>
+          )}
+
+          {/* 2. GRADIENT */}
+          <LinearGradient
+            colors={[
+              "transparent",
+              "rgba(0,0,0,0.2)",
+              "rgba(0,0,0,0.8)",
+              "#000000",
+            ]}
+            locations={[0, 0.5, 0.75, 1]}
+            style={{ position: "absolute", width: "100%", height: "100%", zIndex: 20 }}
+          />
+
+          {/* --- CONTENT LAYER (z-30) --- */}
+          <View className="flex-1 z-30">
             {/* --- HEADER (Left) --- */}
             <View className="absolute top-6 left-6">
               <View className="flex-row items-center px-3 py-1.5 rounded-full border border-white/10 bg-black/30 backdrop-blur-md">
@@ -267,7 +283,7 @@ export const CharacterCard = ({
                 </View>
               </View>
             </View>
-          </ImageBackground>
+          </View>
         </View>
       </View>
     </View>

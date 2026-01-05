@@ -1,6 +1,8 @@
+import { api } from "@/convex/_generated/api";
 import { Ionicons } from "@expo/vector-icons";
 import { Fire02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react-native";
+import { useQuery } from "convex/react";
 import { BlurView } from "expo-blur";
 import { GlassView } from "expo-glass-effect";
 import { useMemo } from "react";
@@ -52,27 +54,20 @@ const getMonthData = () => {
 
 // --- COMPONENT: The Month Heatmap ---
 const MonthHeatmap = ({
-  streakCount,
-  lastCompletedDate,
+  history, // Now accepts history array
 }: {
-  streakCount: number;
-  lastCompletedDate: string | undefined;
+  history: { date: string; value: number }[] | undefined;
 }) => {
   const { days, monthName } = useMemo(() => getMonthData(), []);
 
-  const isDateInStreak = (calendarDateStr: string) => {
-    if (!lastCompletedDate || streakCount <= 0) return false;
-
-    const calendarDate = new Date(calendarDateStr);
-    const lastDoneDate = new Date(lastCompletedDate);
-
-    calendarDate.setHours(0, 0, 0, 0);
-    lastDoneDate.setHours(0, 0, 0, 0);
-
-    const diffTime = lastDoneDate.getTime() - calendarDate.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
-
-    return diffDays >= 0 && diffDays < streakCount;
+  // Check if a specific date was completed based on history logs
+  const isDateCompleted = (calendarDateStr: string) => {
+    if (!history) return false;
+    // Find log for this date
+    // Note: getResolutionAnalytics returns normalized 0-100 values
+    // We consider "Completed" if value >= 100 (or close to it for floating point safety)
+    const log = history.find((h) => h.date === calendarDateStr);
+    return log ? log.value >= 99.9 : false; // Using epsilon logic just in case
   };
 
   return (
@@ -102,7 +97,7 @@ const MonthHeatmap = ({
           if (item.isPadding) {
             return <View key={item.id} style={{ width: 28, height: 28 }} />;
           }
-          const isFilled = isDateInStreak(item.date);
+          const isFilled = isDateCompleted(item.date);
           const isToday = item.isToday;
 
           return (
@@ -155,7 +150,7 @@ const MonthHeatmap = ({
 export const StreakModal = ({
   visible,
   onClose,
-  resolutions,
+  resolutions: propResolutions, // Renamed to denote these are initial/prop data
   globalStreak,
 }: {
   visible: boolean;
@@ -163,14 +158,20 @@ export const StreakModal = ({
   resolutions: any[] | undefined;
   globalStreak: number;
 }) => {
-  // --- THE FIX: Filter specifically for Active Streaks (> 0) ---
-  const activeStreaks = useMemo(() => {
-    if (!resolutions) return [];
+  // Fetch detailed analytics (with history) for heatmap
+  const analyticsData = useQuery(api.resolutions.getResolutionAnalytics);
 
-    return resolutions
-      .filter((r) => r.isActive && (r.currentStreak || 0) > 0) // Filter: Must be active AND have a streak > 0
-      .sort((a, b) => (b.currentStreak || 0) - (a.currentStreak || 0)); // Sort: Highest streak first
-  }, [resolutions]);
+  // Merge prop data with analytics data if available
+  const activeStreaks = useMemo(() => {
+    // Determine source: prefer analytics if loaded (for history), else props
+    const sourceData = analyticsData || propResolutions;
+
+    if (!sourceData) return [];
+
+    return sourceData
+      .filter((r) => r.isActive) // Removed strict (> 0) check so you can see history even if streak broke today
+      .sort((a, b) => (b.currentStreak || 0) - (a.currentStreak || 0));
+  }, [propResolutions, analyticsData]);
 
   return (
     <Modal
@@ -263,7 +264,7 @@ export const StreakModal = ({
 
         <View style={{ flex: 1 }}>
           <FlatList
-            data={activeStreaks} // Use the filtered data here
+            data={activeStreaks}
             keyExtractor={(item) => item._id}
             contentContainerStyle={{
               paddingBottom: 80,
@@ -271,49 +272,53 @@ export const StreakModal = ({
               gap: 16,
             }}
             showsVerticalScrollIndicator={false}
-            renderItem={({ item, index }) => (
-              <Animated.View
-                entering={FadeInDown.delay(index * 100).duration(600)}
-                className="rounded-[32px] overflow-hidden"
-                style={{
-                  backgroundColor: "rgba(255, 255, 255, 0.08)",
-                  borderWidth: 1,
-                  borderColor: "rgba(255, 255, 255, 0.08)",
-                }}
-              >
-                <View className="p-6">
-                  <View className="flex-row justify-between items-start mb-2">
-                    <View className="flex-1">
-                      <Text
-                        className="text-white font-generalsans-semibold text-[19px] tracking-tight"
-                        numberOfLines={1}
-                      >
-                        {item.title}
-                      </Text>
-                      <Text className="text-white/40 text-xs mt-1 font-generalsans-medium capitalize">
-                        {item.frequencyType.replace(/_/g, " ")} schedule
-                      </Text>
+            renderItem={({ item, index }) => {
+              // Extract history from the item (it will be present if analyticsData loaded)
+              const history = (item as any).history;
+
+              return (
+                <Animated.View
+                  entering={FadeInDown.delay(index * 100).duration(600)}
+                  className="rounded-[32px] overflow-hidden"
+                  style={{
+                    backgroundColor: "rgba(255, 255, 255, 0.08)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255, 255, 255, 0.08)",
+                  }}
+                >
+                  <View className="p-6">
+                    <View className="flex-row justify-between items-start mb-2">
+                      <View className="flex-1">
+                        <Text
+                          className="text-white font-generalsans-semibold text-[19px] tracking-tight"
+                          numberOfLines={1}
+                        >
+                          {item.title}
+                        </Text>
+                        <Text className="text-white/40 text-xs mt-1 font-generalsans-medium capitalize">
+                          {item.frequencyType.replace(/_/g, " ")} schedule
+                        </Text>
+                      </View>
+
+                      <View className="items-end">
+                        <Text className="text-2xl font-generalsans-bold text-[#FF9C00]">
+                          {item.currentStreak || 0}
+                        </Text>
+                        <Text className="text-white/30 text-[9px] uppercase font-generalsans-bold tracking-wider">
+                          Streak
+                        </Text>
+                      </View>
                     </View>
 
-                    <View className="items-end">
-                      <Text className="text-2xl font-generalsans-bold text-[#FF9C00]">
-                        {item.currentStreak || 0}
-                      </Text>
-                      <Text className="text-white/30 text-[9px] uppercase font-generalsans-bold tracking-wider">
-                        Streak
-                      </Text>
-                    </View>
+                    <View className="h-[1px] bg-white/5 w-full my-3" />
+
+                    <MonthHeatmap
+                      history={history} // Pass full history
+                    />
                   </View>
-
-                  <View className="h-[1px] bg-white/5 w-full my-3" />
-
-                  <MonthHeatmap
-                    streakCount={item.currentStreak || 0}
-                    lastCompletedDate={item.lastCompletedDate}
-                  />
-                </View>
-              </Animated.View>
-            )}
+                </Animated.View>
+              );
+            }}
             ListEmptyComponent={
               <View className="items-center justify-center py-10">
                 <Text className="text-center text-white/40 font-generalsans-medium">

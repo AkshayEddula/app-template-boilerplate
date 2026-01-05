@@ -68,6 +68,34 @@ export const completeOnboarding = mutation({
   },
 });
 
+export const updateProfile = mutation({
+  args: {
+    name: v.optional(v.string()),
+    goal: v.optional(v.string()),
+    experience: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    const updates: any = {};
+    if (args.name !== undefined) updates.name = args.name;
+    if (args.goal !== undefined) updates.goal = args.goal;
+    if (args.experience !== undefined) updates.experience = args.experience;
+
+    await ctx.db.patch(user._id, updates);
+  },
+});
+
 export const currentUser = query({
   args: {},
   handler: async (ctx) => {
@@ -121,5 +149,35 @@ export const deleteUser = mutation({
 
     // Delete the user record
     await ctx.db.delete(user._id);
+  },
+});
+
+export const updateSubscription = mutation({
+  args: {
+    isPremium: v.boolean(),
+    subscriptionExpiry: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      console.warn("Called updateSubscription without authentication");
+      return;
+    }
+
+    // Find the user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
+      )
+      .unique();
+
+    if (!user) throw new Error("User not found");
+
+    // Patch the user with new subscription info
+    await ctx.db.patch(user._id, {
+      isPremium: args.isPremium,
+      subscriptionExpiry: args.subscriptionExpiry,
+    });
   },
 });

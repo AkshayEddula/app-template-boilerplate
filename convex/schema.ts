@@ -14,6 +14,9 @@ export default defineSchema({
     // Global Streak Tracking
     currentStreak: v.optional(v.number()),
     lastCompletedDate: v.optional(v.string()), // "YYYY-MM-DD"
+
+    isPremium: v.optional(v.boolean()),
+    subscriptionExpiry: v.optional(v.string()), // ISO Date string
   }).index("by_token", ["tokenIdentifier"]),
 
   categories: defineTable({

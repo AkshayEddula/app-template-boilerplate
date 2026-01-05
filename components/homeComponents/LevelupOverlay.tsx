@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Modal, StyleSheet, Text, TouchableOpacity, useWindowDimensions } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -7,19 +7,28 @@ import Animated, {
   withDelay,
   withTiming,
 } from "react-native-reanimated";
-import { CharacterCard } from "./CharacterCard";
+import { CharacterCard, getCurrentStageInfo } from "./CharacterCard";
 
 export const LevelUpOverlay = ({
   visible,
   onClose,
   categoryKey,
   newTotalXp,
+  imageUrl,
+  isLevelUp = false,
 }: {
   visible: boolean;
   onClose: () => void;
   categoryKey: string | null;
   newTotalXp: number;
+  imageUrl?: string;
+  isLevelUp?: boolean;
 }) => {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+
+  const { current, next } = getCurrentStageInfo(newTotalXp);
+  const xpNeeded = next ? next.minXp - newTotalXp : 0;
   // Card Values
   const scale = useSharedValue(0);
   const rotateY = useSharedValue(0);
@@ -100,15 +109,33 @@ export const LevelUpOverlay = ({
               textShadowRadius: 20,
             }}
           >
-            NEW CARD!
+            {isLevelUp ? "NEW CARD!" : "XP GAINED!"}
           </Text>
+          {!isLevelUp && next && (
+            <Text className="text-white/70 font-generalsans-medium text-sm mt-2 text-center uppercase tracking-widest">
+              {xpNeeded} XP to {next.name}
+            </Text>
+          )}
         </Animated.View>
 
-        {/* 2. The Card (Spins and Zooms) */}
+        {/* 2. The Card (Spins and Zooms) - With Tablet Size Limit */}
         <Animated.View
-          style={[cardStyle, { alignItems: "center", zIndex: 10 }]}
+          style={[
+            cardStyle,
+            {
+              alignItems: "center",
+              zIndex: 10,
+              maxWidth: isTablet ? 400 : undefined,
+              width: isTablet ? 400 : undefined,
+            }
+          ]}
         >
-          <CharacterCard categoryKey={categoryKey} xp={newTotalXp} />
+          <CharacterCard
+            categoryKey={categoryKey}
+            xp={newTotalXp}
+            imageUrl={imageUrl || ""}
+            scale={isTablet ? 0.6 : 1}
+          />
         </Animated.View>
 
         {/* 3. Button (Appears after card) */}

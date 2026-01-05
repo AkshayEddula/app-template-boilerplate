@@ -6,7 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react-native";
 import { useMutation } from "convex/react";
 import { BlurView } from "expo-blur";
 import { GlassView } from "expo-glass-effect";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -204,7 +204,7 @@ const MonthHeatmap = ({
           if (item.isPadding)
             return <View key={item.id} style={{ width: 28, height: 28 }} />;
 
-          const isFilled = isDateInStreak(item.date);
+          const isFilled = item.date ? isDateInStreak(item.date) : false;
           const isToday = item.isToday;
 
           return (
@@ -265,13 +265,15 @@ export const TrackingModal = ({
   initialValue = 0,
   readOnly = false,
   onLevelUp,
+  currentCategoryXp = 0,
 }: {
   visible: boolean;
   onClose: () => void;
   resolution: Resolution | null;
   initialValue?: number;
   readOnly?: boolean;
-  onLevelUp: (categoryKey: string, newTotalXp: number) => void;
+  onLevelUp: (categoryKey: string, newTotalXp: number, oldTotalXp: number) => void;
+  currentCategoryXp?: number;
 }) => {
   const logProgress = useMutation(api.resolutions.logProgress);
   const editResolution = useMutation(api.resolutions.edit);
@@ -366,7 +368,7 @@ export const TrackingModal = ({
           }
           return next;
         });
-      }, 1000);
+      }, 1000) as unknown as NodeJS.Timeout;
     }
   };
 
@@ -386,7 +388,7 @@ export const TrackingModal = ({
 
       if (result && result.newDailyXp > 0) {
         setTimeout(() => {
-          onLevelUp(resolution.categoryKey, result.totalCategoryXp);
+          onLevelUp(resolution.categoryKey, result.totalCategoryXp, currentCategoryXp);
         }, 300);
       }
     } catch (e) {
@@ -632,11 +634,10 @@ export const TrackingModal = ({
                       disabled={readOnly}
                       onPress={() => setCountValue(countValue === 0 ? 1 : 0)}
                       activeOpacity={0.8}
-                      className={`w-40 h-40 rounded-[40px] items-center justify-center border-4 shadow-2xl ${
-                        countValue > 0
-                          ? "bg-[#22c55e] border-[#4ade80]"
-                          : "bg-white/10 border-white/20"
-                      }`}
+                      className={`w-40 h-40 rounded-[40px] items-center justify-center border-4 shadow-2xl ${countValue > 0
+                        ? "bg-[#22c55e] border-[#4ade80]"
+                        : "bg-white/10 border-white/20"
+                        }`}
                       style={{
                         shadowColor: countValue > 0 ? "#22c55e" : "#000",
                         shadowOpacity: countValue > 0 ? 0.6 : 0.2,
@@ -981,14 +982,12 @@ export const TrackingModal = ({
                   onPress={handleSaveProgress}
                   disabled={isAlreadyCompleted}
                   activeOpacity={0.8}
-                  className={`flex-1 py-4 rounded-2xl items-center shadow-sm ${
-                    isAlreadyCompleted ? "bg-white/10 opacity-50" : "bg-white"
-                  }`}
+                  className={`flex-1 py-4 rounded-2xl items-center shadow-sm ${isAlreadyCompleted ? "bg-white/10 opacity-50" : "bg-white"
+                    }`}
                 >
                   <Text
-                    className={`font-generalsans-bold text-base ${
-                      isAlreadyCompleted ? "text-white/50" : "text-[#3A7AFE]"
-                    }`}
+                    className={`font-generalsans-bold text-base ${isAlreadyCompleted ? "text-white/50" : "text-[#3A7AFE]"
+                      }`}
                   >
                     {isAlreadyCompleted ? "Completed" : "Save Progress"}
                   </Text>
@@ -1099,15 +1098,14 @@ const ModernTimer = ({
           onPress={onToggle}
           disabled={isGoalMet || disabled}
           activeOpacity={0.8}
-          className={`w-14 h-14 rounded-full items-center justify-center border ${
-            disabled
-              ? "bg-white/5 border-white/5"
-              : isGoalMet
-                ? "bg-[#22c55e] border-[#4ade80]"
-                : isRunning
-                  ? "bg-red-500 border-red-400"
-                  : "bg-white border-white"
-          }`}
+          className={`w-14 h-14 rounded-full items-center justify-center border ${disabled
+            ? "bg-white/5 border-white/5"
+            : isGoalMet
+              ? "bg-[#22c55e] border-[#4ade80]"
+              : isRunning
+                ? "bg-red-500 border-red-400"
+                : "bg-white border-white"
+            }`}
           style={{
             shadowColor: "#121212",
             shadowOffset: { width: 0, height: 2 },
@@ -1133,16 +1131,14 @@ const ModernTimer = ({
           onPress={onAddFive}
           disabled={isGoalMet || disabled}
           activeOpacity={0.8}
-          className={`w-14 h-14 rounded-full items-center justify-center border ${
-            isGoalMet || disabled
-              ? "bg-white/5 border-white/5 opacity-50"
-              : "bg-white/10 border-white/20"
-          }`}
+          className={`w-14 h-14 rounded-full items-center justify-center border ${isGoalMet || disabled
+            ? "bg-white/5 border-white/5 opacity-50"
+            : "bg-white/10 border-white/20"
+            }`}
         >
           <Text
-            className={`font-generalsans-bold text-xs ${
-              isGoalMet || disabled ? "text-white/30" : "text-white"
-            }`}
+            className={`font-generalsans-bold text-xs ${isGoalMet || disabled ? "text-white/30" : "text-white"
+              }`}
           >
             +5m
           </Text>
@@ -1194,9 +1190,8 @@ const CountCircles = ({
         style={{ opacity: disabled ? 0.7 : 1 }}
       >
         <Animated.Text
-          className={`font-generalsans-bold text-[100px] leading-[100px] shadow-sm shadow-white ${
-            disabled ? "text-white/20" : "text-white"
-          }`}
+          className={`font-generalsans-bold text-[100px] leading-[100px] shadow-sm shadow-white ${disabled ? "text-white/20" : "text-white"
+            }`}
         >
           {count}
         </Animated.Text>
@@ -1217,11 +1212,10 @@ const CountCircles = ({
           onPress={decrement}
           disabled={disabled || count <= 0}
           activeOpacity={0.7}
-          className={`w-16 h-16 rounded-full items-center justify-center border ${
-            disabled || count <= 0
-              ? "bg-white/5 border-white/5"
-              : "bg-white/10 border-white/20"
-          }`}
+          className={`w-16 h-16 rounded-full items-center justify-center border ${disabled || count <= 0
+            ? "bg-white/5 border-white/5"
+            : "bg-white/10 border-white/20"
+            }`}
         >
           <Ionicons
             name="remove"
@@ -1234,11 +1228,10 @@ const CountCircles = ({
           onPress={increment}
           disabled={disabled || count >= maxTarget}
           activeOpacity={0.7}
-          className={`w-16 h-16 rounded-full items-center justify-center shadow-lg border ${
-            disabled || count >= maxTarget
-              ? "bg-white/5 border-white/5"
-              : "bg-white border-white"
-          }`}
+          className={`w-16 h-16 rounded-full items-center justify-center shadow-lg border ${disabled || count >= maxTarget
+            ? "bg-white/5 border-white/5"
+            : "bg-white border-white"
+            }`}
         >
           <Ionicons
             name="add"
