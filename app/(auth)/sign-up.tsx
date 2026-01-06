@@ -145,16 +145,7 @@ export default function SignUpScreen() {
                                                 1,000+
                                             </Text>
                                             <Text className="text-white/60 font-generalsans-medium text-[10px] mt-0.5">
-                                                Started Today
-                                            </Text>
-                                        </View>
-                                        <View className="w-px h-10 bg-white/20" />
-                                        <View className="items-center">
-                                            <Text className="text-white font-generalsans-bold text-2xl tracking-tight">
-                                                12.4K+
-                                            </Text>
-                                            <Text className="text-white/60 font-generalsans-medium text-[10px] mt-0.5">
-                                                Active Users
+                                                Resolutions Started Today
                                             </Text>
                                         </View>
                                     </View>
@@ -258,7 +249,20 @@ export default function SignUpScreen() {
                     {/* --- FOOTER --- */}
                     <Animated.View entering={FadeInUp.delay(900).duration(800)} className="mt-6">
                         <Text className="text-xs text-blue-100/60 text-center font-generalsans-medium leading-4">
-                            By continuing, you agree to our{'\n'}Terms of Service & Privacy Policy.
+                            By continuing, you agree to our{'\n'}
+                            <Text
+                                onPress={() => WebBrowser.openBrowserAsync("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")}
+                                className="text-white underline"
+                            >
+                                Terms of Service
+                            </Text>
+                            {' & '}
+                            <Text
+                                onPress={() => router.push('/(legal)/privacy-policy')}
+                                className="text-white underline"
+                            >
+                                Privacy Policy
+                            </Text>.
                         </Text>
                     </Animated.View>
                 </View>

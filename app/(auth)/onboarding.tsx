@@ -160,15 +160,13 @@ const BreathingFlame = ({ color }: { color: string }) => {
         <View className="items-center justify-center">
             {/* Outer soft glow - Visible on white */}
             <Animated.View
-                style={[rStyle]}
+                style={[rStyle, { backgroundColor: "#fed7aa" }]}
                 className="absolute w-56 h-56 rounded-full blur-3xl opacity-30"
-                backgroundColor="#fed7aa" // Orange-200
             />
             {/* Inner intense glow */}
             <Animated.View
-                style={[rStyle]}
+                style={[rStyle, { backgroundColor: "#fdba74" }]}
                 className="absolute w-36 h-36 rounded-full blur-2xl opacity-40"
-                backgroundColor="#fdba74" // Orange-300
             />
             {/* The Icon */}
             <MaterialCommunityIcons name="fire" size={140} color={color} style={{ shadowColor: '#ea580c', shadowOpacity: 0.3, shadowRadius: 15, shadowOffset: { width: 0, height: 10 } }} />

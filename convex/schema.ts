@@ -153,4 +153,11 @@ export default defineSchema({
     totalResolutionsCount: v.number(),
     completedResolutionsCount: v.number(),
   }).index("by_user_category_date", ["userId", "categoryKey", "date"]),
+
+  app_config: defineTable({
+    minSupportedAppVersion: v.string(), // "1.0.0"
+    latestAppVersion: v.string(),     // "1.0.2"
+    isMaintenanceMode: v.optional(v.boolean()),
+    storeUrl: v.optional(v.string()),
+  }),
 });

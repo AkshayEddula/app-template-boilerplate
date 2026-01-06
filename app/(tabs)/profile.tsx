@@ -12,8 +12,11 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 import { useMutation, useQuery } from "convex/react";
+import Constants from "expo-constants";
 import { GlassView } from "expo-glass-effect";
 import * as Linking from "expo-linking";
+import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import React, { useMemo, useState } from "react";
 import {
   Alert,
@@ -125,6 +128,7 @@ const MenuRow = ({
 // --- MAIN SCREEN ---
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user: clerkUser } = useUser();
   const { signOut } = useAuth();
   const { isPremium } = useSubscription();
@@ -342,15 +346,13 @@ export default function ProfileScreen() {
                       icon={Shield01Icon} // Using Shield as generic legal icon
                       label="Terms of Use"
                       onPress={() =>
-                        openLink("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")
+                        WebBrowser.openBrowserAsync("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")
                       }
                     />
                     <MenuRow
                       icon={Shield01Icon}
                       label="Privacy Policy"
-                      onPress={() =>
-                        openLink("https://www.apple.com/legal/privacy/en-ww/")
-                      }
+                      onPress={() => router.push("/(legal)/privacy-policy")}
                     />
                   </View>
                 </GlassView>
@@ -385,7 +387,7 @@ export default function ProfileScreen() {
             </View>
 
             <Text className="text-center text-white/20 text-[11px] font-generalsans-medium pb-10">
-              Version 1.0.0 (Build 42)
+              Version {Constants.expoConfig?.version ?? "1.0.0"}
             </Text>
           </View>
 

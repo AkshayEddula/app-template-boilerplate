@@ -513,7 +513,7 @@ export default function ResolutionOnboarding() {
                             ))}
                         </View>
                         <Text className="text-blue-100/80 text-[10px] font-generalsans-medium">
-                            <Text className="text-white font-generalsans-bold">12k+</Text> starting now
+                            <Text className="text-white font-generalsans-bold">1k+</Text> resolutions started
                         </Text>
                     </View>
                 </View>

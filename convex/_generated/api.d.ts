@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as appConfig from "../appConfig.js";
 import type * as auth from "../auth.js";
 import type * as categories from "../categories.js";
 import type * as fixData from "../fixData.js";
@@ -28,6 +29,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  appConfig: typeof appConfig;
   auth: typeof auth;
   categories: typeof categories;
   fixData: typeof fixData;

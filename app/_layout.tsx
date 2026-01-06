@@ -1,13 +1,16 @@
+import UpdateModal from "@/components/UpdateModal";
 import { SubscriptionProvider } from "@/context/SubscriptionContext";
 import { ClerkLoaded, ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { ConvexReactClient, useMutation, useQuery } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
+import Constants from "expo-constants";
 import { useFonts } from "expo-font";
+import * as Linking from "expo-linking";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
-import { api } from "../convex/_generated/api"; // Ensure this path is correct
+import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
+import { api } from "../convex/_generated/api";
 import "../global.css";
 
 // 1. Token Cache Strategy
@@ -73,6 +76,39 @@ function InitialLayout() {
   const storeUser = useMutation(api.users.storeUser);
   // Import query to listen to user state reactively
   const user = useQuery(api.users.currentUser);
+  const appConfig = useQuery(api.appConfig.get);
+
+  // Version Check Logic
+  // Version Check Logic
+  const currentVersion = Constants.expoConfig?.version ?? "1.0.0";
+  const minVersion = appConfig?.minSupportedAppVersion;
+  const latestVersion = appConfig?.latestAppVersion;
+  const storeUrl = appConfig?.storeUrl;
+
+  const compareVersions = (v1: string, v2: string) => {
+    const parts1 = v1.split(".").map(Number);
+    const parts2 = v2.split(".").map(Number);
+    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+      const val1 = parts1[i] || 0;
+      const val2 = parts2[i] || 0;
+      if (val1 < val2) return -1;
+      if (val1 > val2) return 1;
+    }
+    return 0;
+  };
+
+  const isMandatoryUpdate = minVersion ? compareVersions(currentVersion, minVersion) < 0 : false;
+  const isOptionalUpdateAvailable = latestVersion ? compareVersions(currentVersion, latestVersion) < 0 : false;
+
+  const [isOptionalModalVisible, setIsOptionalModalVisible] = useState(false);
+  const [hasCheckedOptionalUpdate, setHasCheckedOptionalUpdate] = useState(false);
+
+  useEffect(() => {
+    if (isOptionalUpdateAvailable && !isMandatoryUpdate && !hasCheckedOptionalUpdate) {
+      setIsOptionalModalVisible(true);
+      setHasCheckedOptionalUpdate(true);
+    }
+  }, [isOptionalUpdateAvailable, isMandatoryUpdate, hasCheckedOptionalUpdate]);
 
   const [isUserInitialized, setIsUserInitialized] = useState(false);
 
@@ -158,6 +194,20 @@ function InitialLayout() {
     }
   }, [isSignedIn, isLoaded, isUserInitialized, user, segments]);
 
+  // Handle Update Action
+  const handleUpdate = () => {
+    if (storeUrl) {
+      Linking.openURL(storeUrl);
+    } else {
+      const url = Platform.select({
+        ios: "https://apps.apple.com/app/idYOUR_APP_ID", // TODO: Replace with actual ID
+        android: "market://details?id=com.codesel.labs.resolution",
+        default: "https://resolution.app"
+      });
+      if (url) Linking.openURL(url);
+    }
+  };
+
   // Show loading indicator until we have initialized and (if signed in) loaded user data
   if (
     !isLoaded ||
@@ -192,21 +242,42 @@ function InitialLayout() {
 
   // Inside your InitialLayout or RootLayout where you have the <Slot /> or <Stack />
   return (
-    <Stack>
-      {/* The main tab group */}
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+    <>
+      <Stack>
+        {/* The main tab group */}
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(legal)" options={{ headerShown: false }} />
 
-      {/* The creation modal */}
-      <Stack.Screen
-        name="create"
-        options={{
-          presentation: "modal",
-          headerShown: false,
-          // On iOS, this makes it a "card" style modal that doesn't cover the whole screen
-          gestureEnabled: true,
-        }}
+        {/* The creation modal */}
+        <Stack.Screen
+          name="create"
+          options={{
+            presentation: "modal",
+            headerShown: false,
+            // On iOS, this makes it a "card" style modal that doesn't cover the whole screen
+            gestureEnabled: true,
+          }}
+        />
+      </Stack>
+
+      {/* Mandatory Update Modal */}
+      <UpdateModal
+        visible={isMandatoryUpdate}
+        type="mandatory"
+        onUpdate={handleUpdate}
       />
-    </Stack>
+
+      {/* Optional Update Modal (only if not mandatory) */}
+      <UpdateModal
+        visible={isOptionalModalVisible && !isMandatoryUpdate}
+        type="optional"
+        onUpdate={handleUpdate}
+        onDismiss={() => setIsOptionalModalVisible(false)}
+      />
+    </>
   );
 }
+
+// Styles only for loading indicator if needed, others removed as they are in UpdateModal
+const styles = StyleSheet.create({});
