@@ -89,12 +89,14 @@ export const PaywallModal = ({ visible, onClose, isHardPaywall = false, onCancel
   const handleRestore = async () => {
     setIsPurchasing(true);
     try {
-      const { success, message } = await restorePurchases();
-      if (!success && message) {
-        // Optional: Alert.alert("Restore", message);
-      } else if (success) {
+      const { success } = await restorePurchases();
+      // Only close modal if restore was successful
+      if (success) {
         onClose();
       }
+      // Errors and "no purchases found" are already handled by the context with alerts
+    } catch (error) {
+      console.error("Unexpected error in handleRestore:", error);
     } finally {
       setIsPurchasing(false);
     }
@@ -599,7 +601,7 @@ function PrivacyView({ onBack }: { onBack: () => void }) {
                 If you have any questions or concerns about this Privacy Policy, you may contact us at:
               </Text>
               <Text className="text-white font-generalsans-semibold mt-2">
-                Email: levora.contact@gmail.com
+                Email: conatactlevora@gmail.com
               </Text>
             </Section>
 

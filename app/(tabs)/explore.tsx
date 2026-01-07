@@ -288,15 +288,10 @@ function VaultView() {
     return allCards.filter((c) => c.categoryKey === activeFilter);
   }, [allCards, activeFilter]);
 
-  const NUM_COLUMNS = 2;
-  const GAP = 12;
-  const PADDING = 20;
-  const CARD_WIDTH = (SCREEN_WIDTH - PADDING * 2 - GAP) / NUM_COLUMNS;
-
   return (
     <Animated.View entering={FadeInDown.duration(400)} className="flex-1 pt-2">
       {/* --- Filter Bar --- */}
-      <View className="mb-4">
+      <View className="mb-6">
         <FlatList
           data={FILTERS}
           horizontal
@@ -347,19 +342,22 @@ function VaultView() {
         />
       </View>
 
-      {/* --- Card Grid --- */}
+      {/* --- Card List (2 Column Grid) --- */}
       <FlatList
         data={filteredCards}
         keyExtractor={(item) => item._id}
-        numColumns={NUM_COLUMNS}
         key={activeFilter}
+        numColumns={2}
         contentContainerStyle={{
           paddingTop: 10,
-          paddingBottom: 100,
-          paddingHorizontal: PADDING,
-          gap: GAP,
+          paddingBottom: 120,
+          paddingHorizontal: 12, // Match SPACING
         }}
-        columnWrapperStyle={{ gap: GAP }}
+        columnWrapperStyle={{
+          gap: 4, // Match SPACING
+          marginBottom: 0,
+          justifyContent: 'space-between', // Force spacing
+        }}
         showsVerticalScrollIndicator={false}
         initialNumToRender={6}
         maxToRenderPerBatch={6}
@@ -367,9 +365,9 @@ function VaultView() {
         removeClippedSubviews={Platform.OS === "android"}
         renderItem={({ item, index }) => (
           <Animated.View
-            style={{ width: CARD_WIDTH }}
+            entering={FadeInDown.delay(index * 50).duration(400)}
           >
-            <VaultCardWrapper item={item} width={CARD_WIDTH} />
+            <VaultCardWrapper item={item} />
           </Animated.View>
         )}
         ListEmptyComponent={
@@ -676,7 +674,7 @@ function MilestoneCard({
 }
 
 // 3. Vault Card Wrapper
-function VaultCardWrapper({ item, width }: { item: any; width: number }) {
+function VaultCardWrapper({ item }: { item: any }) {
   const isEquipped = item.isUnlocked && item.currentXp <= item.maxXp;
   const isCompleted = item.isUnlocked && item.currentXp > item.maxXp;
 
@@ -689,40 +687,42 @@ function VaultCardWrapper({ item, width }: { item: any; width: number }) {
 
   return (
     <View className="relative items-center">
-      <View style={{ opacity: item.isUnlocked ? 1 : 0.5 }}>
+      <View style={{ opacity: item.isUnlocked ? 1 : 0.6 }}>
         <CharacterCard
           categoryKey={item.categoryKey}
           xp={displayXp}
-          scale={0.5}
+          scale={1.0}
           isEquipped={isEquipped}
           isCompleted={isCompleted}
           imageUrl={item.image}
+          message={item.message}
+          isLocked={!item.isUnlocked}
         />
       </View>
 
       {!item.isUnlocked && (
-        <View className="absolute inset-0 items-center justify-center z-10">
+        <View className="absolute inset-0 items-center justify-center z-10" pointerEvents="none">
           <GlassView
             glassEffectStyle="regular"
             style={{
-              width: 48,
-              height: 48,
-              borderRadius: 24,
+              width: 56,
+              height: 56,
+              borderRadius: 28,
               alignItems: "center",
               justifyContent: "center",
-              borderWidth: 1,
+              borderWidth: 2,
               borderColor: "rgba(255,255,255,0.2)",
-              marginBottom: 8,
+              marginBottom: 12,
             }}
           >
-            <HugeiconsIcon icon={LockKeyIcon} size={22} color="white" />
+            <HugeiconsIcon icon={LockKeyIcon} size={26} color="white" />
           </GlassView>
 
-          <View className="bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-md">
-            <Text className="text-white/90 font-generalsans-bold text-[10px] text-center">
+          <View className="bg-black/60 px-4 py-2 rounded-full backdrop-blur-md border border-white/10">
+            <Text className="text-white/90 font-generalsans-bold text-[12px] text-center">
               Stage {item.stage}
             </Text>
-            <Text className="text-white/60 font-generalsans-medium text-[9px] text-center mt-0.5">
+            <Text className="text-white/60 font-generalsans-medium text-[10px] text-center mt-0.5">
               Need {item.minXp} XP
             </Text>
           </View>

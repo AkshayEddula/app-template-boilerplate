@@ -130,9 +130,38 @@ export const SubscriptionProvider = ({
     try {
       const customerInfo = await Purchases.restorePurchases();
       updateCustomerInfo(customerInfo);
-      return { success: true };
+
+      // Check if user actually has any active entitlements
+      const hasActiveEntitlements = Object.keys(customerInfo.entitlements.active).length > 0;
+
+      if (hasActiveEntitlements) {
+        Alert.alert(
+          "Success",
+          "Your purchases have been restored!",
+          [{ text: "OK" }]
+        );
+        return { success: true };
+      } else {
+        Alert.alert(
+          "No Purchases Found",
+          "We couldn't find any previous purchases to restore. If you believe this is an error, please contact support.",
+          [{ text: "OK" }]
+        );
+        return { success: false, message: "No purchases found" };
+      }
     } catch (error: any) {
-      Alert.alert("Restore Failed", error.message);
+      console.error("Restore purchases error:", error);
+
+      // Handle specific error cases
+      let errorMessage = "Unable to restore purchases. Please try again.";
+
+      if (error.code === "NETWORK_ERROR" || error.message?.includes("network")) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (error.code === "STORE_PROBLEM") {
+        errorMessage = "There was a problem connecting to the store. Please try again later.";
+      }
+
+      Alert.alert("Restore Failed", errorMessage, [{ text: "OK" }]);
       return { success: false, message: error.message };
     }
   };

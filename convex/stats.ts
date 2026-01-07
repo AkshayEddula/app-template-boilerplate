@@ -128,6 +128,7 @@ export const getAllCards = query({
         maxXp: maxXp,
         isUnlocked: currentXp >= stage.minXp,
         currentXp: currentXp,
+        message: stage.message,
       };
     });
 

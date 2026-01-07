@@ -1,54 +1,40 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image"; // Updated import
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
-import { ActivityIndicator, Dimensions, Text, View } from "react-native";
+import {
+  Animated,
+  Dimensions,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+// explore.tsx has paddingHorizontal: 12 and gap: 4
+const CARD_WIDTH = (SCREEN_WIDTH - 24 - 4) / 2;
 
-// ... (Keep constants: CATEGORY_ICONS, CHARACTER_NAMES, etc.) ...
+// --- CONFIGURATION ---
+const CATEGORY_COLORS: Record<string, string> = {
+  health: "#34D399",
+  mind: "#A78BFA",
+  career: "#60A5FA",
+  life: "#FBBF24",
+  fun: "#F472B6",
+  default: "#3A7AFE",
+};
 
 const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   health: "heart",
   mind: "prism",
   career: "briefcase",
   life: "compass",
-  fun: "sparkles",
-};
-
-const CHARACTER_NAMES: Record<string, string> = {
-  health: "Vita",
-  mind: "Aeris",
-  career: "Forge",
-  life: "Axis",
-  fun: "Pulse",
-};
-
-const CHARACTER_TITLES: Record<string, string> = {
-  health: "The Vitality Keeper",
-  mind: "The Architect of Thought",
-  career: "The Iron Builder",
-  life: "The Core Navigator",
-  fun: "The Spirit of Joy",
-};
-
-const CHARACTER_LORE: Record<string, string> = {
-  health:
-    "Born from the first heartbeat. Vita thrives when you move and hydrate. Neglect fades her light; action makes her burn bright.",
-  mind: "A being of pure intellect. Aeris grows clearer with every page read. Feed him knowledge to unlock his true form.",
-  career:
-    "Forged in the fires of ambition. He doesn't ask for luck; he asks for discipline. Build your empire, and Forge will stand guard.",
-  life: "The silent observer of your habits. Axis aligns when you find balance. Consistency is his fuel.",
-  fun: "The echo of your laughter. Pulse explodes in color when you explore, create, and let go of the grind.",
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  health: "#10B981", // Emerald
-  mind: "#8B5CF6", // Violet
-  career: "#3B82F6", // Blue
-  life: "#F59E0B", // Amber
-  fun: "#EC4899", // Pink
-  default: "#94A3B8", // Slate
+  fun: "happy",
 };
 
 export const STAGES = [
@@ -56,6 +42,7 @@ export const STAGES = [
   { stage: 2, name: "Rise", minXp: 501 },
   { stage: 3, name: "Flow", minXp: 1501 },
   { stage: 4, name: "Ascend", minXp: 3501 },
+  { stage: 5, name: "Apex", minXp: 10000 },
 ];
 
 export const getCurrentStageInfo = (xp: number) => {
@@ -75,9 +62,8 @@ export const CharacterCard = ({
   categoryKey,
   imageUrl,
   xp,
-  scale = 1,
-  isEquipped = false,
-  isCompleted = false,
+  message,
+  isLocked = false,
 }: {
   categoryKey: string;
   imageUrl: string;
@@ -85,207 +71,507 @@ export const CharacterCard = ({
   scale?: number;
   isEquipped?: boolean;
   isCompleted?: boolean;
+  message?: string;
+  isLocked?: boolean;
 }) => {
-  const [isLoading, setIsLoading] = useState(true); // Default to true to show loader immediately
+  const [modalVisible, setModalVisible] = useState(false);
+  const scaleAnim = useState(new Animated.Value(1))[0];
 
   const { current, next } = getCurrentStageInfo(xp);
   const color = CATEGORY_COLORS[categoryKey] || CATEGORY_COLORS.default;
-  const name = CHARACTER_NAMES[categoryKey] || "Character";
-  const title = CHARACTER_TITLES[categoryKey] || "Companion";
-  const lore = CHARACTER_LORE[categoryKey] || "A loyal companion.";
 
-  // XP Math
+  // XP Progress
   const rangeStart = current.minXp;
   const rangeEnd = next ? next.minXp : current.minXp * 1.5;
   const progressPercent =
     Math.min(Math.max((xp - rangeStart) / (rangeEnd - rangeStart), 0), 1) * 100;
-  const xpRemaining = next ? next.minXp - xp : 0;
 
-  // Card Dimensions
-  const CARD_WIDTH = SCREEN_WIDTH * 0.9;
-  const CARD_HEIGHT = CARD_WIDTH * 1.5;
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+      speed: 20,
+    }).start();
+  };
 
-  // Determine Border Color based on status
-  const borderColor = isEquipped
-    ? "#10B981" // Green
-    : isCompleted
-      ? "#F59E0B" // Gold
-      : `${color}40`; // Default dim color
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 20,
+    }).start();
+  };
 
   return (
-    <View
-      style={{
-        width: CARD_WIDTH * scale,
-        height: CARD_HEIGHT * scale,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <View
-        style={{
-          transform: [{ scale }],
-          width: CARD_WIDTH,
-          height: CARD_HEIGHT,
-          shadowColor: color,
-          shadowOffset: { width: 0, height: 20 },
-          shadowOpacity: 0.5,
-          shadowRadius: 32,
-          elevation: 24,
-        }}
+    <>
+      {/* --- GRID CARD (UNCHANGED) --- */}
+      <Pressable
+        onPress={() => setModalVisible(true)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        className="mb-5"
       >
-        {/* 1. FRAME */}
-        <View
-          className="flex-1 rounded-[40px] overflow-hidden bg-black relative"
-        >
-          {/* IMAGE LAYER */}
-          <Image
-            source={imageUrl}
-            style={{ position: 'absolute', width: "100%", height: "100%" }}
-            contentFit="cover"
-            transition={500}
-            onLoadStart={() => setIsLoading(true)}
-            onLoad={() => setIsLoading(false)}
-          />
+        <Animated.View style={{ transform: [{ scale: scaleAnim }], width: CARD_WIDTH }}>
+          {/* 1. Image Container */}
+          <View
+            className="rounded-[20px] bg-[#1e1e1e] overflow-hidden mb-2 relative"
+            style={{ width: CARD_WIDTH, height: CARD_WIDTH * 1.5 }}
+          >
+            <Image
+              source={imageUrl}
+              style={{ width: '100%', height: '100%' }}
+              contentFit="cover"
+            />
+            {/* Status Indicator */}
+            <View
+              className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full"
+              style={{ backgroundColor: color }}
+            />
 
-          {/* LOADING LAYER */}
-          {isLoading && (
-            <View className="absolute inset-0 items-center justify-center bg-zinc-900 z-10">
-              <ActivityIndicator size="small" color={color} />
+            {/* Progress Bar Overlay */}
+            <View className="absolute bottom-0 left-0 right-0 h-[3px] bg-black/40">
+              <View
+                className="h-full"
+                style={{ width: `${progressPercent}%`, backgroundColor: color }}
+              />
             </View>
-          )}
+          </View>
 
-          {/* 2. GRADIENT */}
-          <LinearGradient
-            colors={[
-              "transparent",
-              "rgba(0,0,0,0.2)",
-              "rgba(0,0,0,0.8)",
-              "#000000",
-            ]}
-            locations={[0, 0.5, 0.75, 1]}
-            style={{ position: "absolute", width: "100%", height: "100%", zIndex: 20 }}
-          />
+          {/* 2. Text Content */}
+          <View className="items-center px-1">
+            <Text
+              className="text-white text-[16px] font-bold mb-0.5 text-center"
+              style={{ fontFamily: "GeneralSans-Bold" }}
+              numberOfLines={1}
+            >
+              {current.name}
+            </Text>
+            <Text
+              className="text-white/60 text-[12px] text-center"
+              style={{ fontFamily: "GeneralSans-Medium" }}
+            >
+              Stage {current.stage} • {categoryKey.charAt(0).toUpperCase() + categoryKey.slice(1)}
+            </Text>
+          </View>
+        </Animated.View>
+      </Pressable>
 
-          {/* --- CONTENT LAYER (z-30) --- */}
-          <View className="flex-1 z-30">
-            {/* --- HEADER (Left) --- */}
-            <View className="absolute top-6 left-6">
-              <View className="flex-row items-center px-3 py-1.5 rounded-full border border-white/10 bg-black/30 backdrop-blur-md">
-                <Ionicons
-                  name={CATEGORY_ICONS[categoryKey]}
-                  size={10}
-                  color={color}
-                />
-                <Text className="text-white text-[10px] font-generalsans-bold uppercase ml-1.5 tracking-wider">
-                  {categoryKey}
-                </Text>
+
+      {/* --- MODAL (Bottom Sheet) --- */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        {isLocked ? (
+          // LOCKED STATE MODAL
+          <View className="flex-1 justify-end bg-black/60">
+            <Pressable
+              className="absolute inset-0"
+              onPress={() => setModalVisible(false)}
+            />
+
+            {/* Locked Sheet Container */}
+            <View
+              className="rounded-t-[36px] overflow-hidden border-t border-white/10"
+              style={{ height: SCREEN_HEIGHT * 0.65 }}
+            >
+              <LinearGradient
+                colors={["#1E293B", "#0F172A", "#000000"]}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              {/* Handle Indicator */}
+              <View className="items-center pt-3 pb-1">
+                <View className="w-10 h-1 bg-white/20 rounded-full" />
               </View>
-            </View>
 
-            {/* --- STATUS BADGES (Right) --- */}
-            {isEquipped && (
-              <View className="absolute top-6 right-6">
+              <ScrollView
+                className="flex-1 px-6"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 60, alignItems: 'center', justifyContent: 'center' }}
+              >
+                {/* Lock Icon */}
                 <View
-                  className="flex-row items-center px-3 py-1.5 rounded-full border bg-black/60 backdrop-blur-md"
-                  style={{
-                    borderColor: "#10B981",
-                    backgroundColor: "rgba(16, 185, 129, 0.1)",
-                  }}
+                  className="w-20 h-20 rounded-full items-center justify-center mb-6"
+                  style={{ backgroundColor: `${color}20`, borderWidth: 2, borderColor: `${color}40` }}
                 >
-                  <Ionicons name="radio-button-on" size={12} color="#34D399" />
-                  <Text className="text-[#34D399] text-[10px] font-generalsans-bold uppercase ml-1.5 tracking-wider">
-                    Equipped
+                  <Ionicons name="lock-closed" size={40} color={color} />
+                </View>
+
+                {/* Blurred Character Preview */}
+                <View className="items-center mb-8">
+                  <View
+                    className="w-48 h-64 rounded-[24px] overflow-hidden border border-white/10 bg-black/40"
+                    style={{ opacity: 0.3 }}
+                  >
+                    <Image
+                      source={imageUrl}
+                      style={{ width: '100%', height: '100%' }}
+                      contentFit="cover"
+                      blurRadius={20}
+                    />
+                  </View>
+                </View>
+
+                {/* Locked Message */}
+                <View className="items-center mb-8">
+                  <Text
+                    className="text-white text-[32px] font-bold text-center mb-3"
+                    style={{ fontFamily: "GeneralSans-Bold" }}
+                  >
+                    Locked
+                  </Text>
+                  <Text
+                    className="text-white/70 text-[16px] text-center leading-[24px] px-4"
+                    style={{ fontFamily: "GeneralSans-Medium" }}
+                  >
+                    Complete the previous stage to unlock this character
                   </Text>
                 </View>
-              </View>
-            )}
 
-            {isCompleted && !isEquipped && (
-              <View className="absolute top-6 right-6">
-                <View
-                  className="flex-row items-center px-3 py-1.5 rounded-full border bg-black/60 backdrop-blur-md"
-                  style={{
-                    borderColor: "#F59E0B",
-                    backgroundColor: "rgba(245, 158, 11, 0.1)",
-                  }}
-                >
-                  <Ionicons name="checkmark-circle" size={12} color="#FBBF24" />
-                  <Text className="text-[#FBBF24] text-[10px] font-generalsans-bold uppercase ml-1.5 tracking-wider">
-                    Collected
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* --- BODY CONTENT --- */}
-            <View className="flex-1 justify-end px-7 pb-8">
-              <View className="mb-6">
-                <Text
-                  className="text-[11px] font-generalsans-bold uppercase tracking-[-0.5px] mb-1"
-                  style={{ color: color }}
-                >
-                  {title}
-                </Text>
-                <Text className="text-white text-[42px] leading-[44px] font-bricolagegrotesk-semibold tracking-[-3px] mb-3">
-                  {name}
-                </Text>
-                <Text className="text-slate-300 text-[12px] tracking-wide leading-5 font-generalsans-regular opacity-80">
-                  {lore}
-                </Text>
-              </View>
-
-              <View className="mt-2">
-                <View className="flex-row items-end justify-between mb-3">
-                  <View>
-                    <Text className="text-slate-500 text-[9px] uppercase font-bold tracking-widest mb-1">
-                      Current XP
+                {/* Stage Info Card */}
+                <View className="bg-white/5 rounded-2xl p-5 border border-white/10 w-full mb-6">
+                  <View className="flex-row items-center mb-3">
+                    <Ionicons name="trophy" size={20} color={color} style={{ marginRight: 10 }} />
+                    <Text
+                      className="text-white text-[14px] font-bold uppercase tracking-wide"
+                      style={{ fontFamily: "GeneralSans-Bold" }}
+                    >
+                      Requirements
                     </Text>
-                    <View className="flex-row items-baseline">
-                      <Text className="text-white text-3xl font-generalsans-bold tracking-tighter">
-                        {xp}
-                      </Text>
-                      <Text className="text-slate-600 text-sm ml-1 font-generalsans-medium">
-                        / {next ? next.minXp : "MAX"}
-                      </Text>
+                  </View>
+                  <Text className="text-white/60 text-[14px] leading-[22px]">
+                    Keep building your streak and earning XP to progress through the stages and unlock new characters.
+                  </Text>
+                </View>
+
+                {/* Close Button */}
+                <Pressable
+                  onPress={() => setModalVisible(false)}
+                  className="w-full h-14 rounded-[20px] overflow-hidden justify-center items-center active:scale-[0.98]"
+                  style={{
+                    shadowColor: '#000',
+                    shadowOpacity: 0.4,
+                    shadowRadius: 20,
+                    shadowOffset: { width: 0, height: 8 },
+                    elevation: 12,
+                  }}
+                >
+                  <LinearGradient
+                    colors={[color, `${color}DD`]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View className="flex-row items-center">
+                    <Text
+                      className="text-white font-bold text-[16px] tracking-wide"
+                      style={{ fontFamily: "GeneralSans-Bold" }}
+                    >
+                      Got it
+                    </Text>
+                  </View>
+                </Pressable>
+              </ScrollView>
+            </View>
+          </View>
+        ) : (
+          // UNLOCKED STATE MODAL (EXISTING)
+          <View className="flex-1 justify-end bg-black/60">
+            <Pressable
+              className="absolute inset-0"
+              onPress={() => setModalVisible(false)}
+            />
+
+            {/* Sheet Container with Gradient Background */}
+            <View
+              className="rounded-t-[36px] overflow-hidden border-t border-white/10"
+              style={{ height: SCREEN_HEIGHT * 0.8 }}
+            >
+              <LinearGradient
+                colors={["#2563EB", "#1E40AF", "#0F172A"]}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              {/* Handle Indicator */}
+              <View className="items-center pt-3 pb-1">
+                <View className="w-10 h-1 bg-white/20 rounded-full" />
+              </View>
+
+              <ScrollView
+                className="flex-1 px-6"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 60 }}
+              >
+
+                {/* Enhanced Image Section with Premium Styling */}
+                <View className="items-center mt-6 mb-8">
+                  {/* Outer glow container */}
+                  <View
+                    className="rounded-[28px] p-1"
+                    style={{
+                      backgroundColor: `${color}20`,
+                      shadowColor: color,
+                      shadowOpacity: 0.4,
+                      shadowRadius: 24,
+                      shadowOffset: { width: 0, height: 8 },
+                      elevation: 12,
+                    }}
+                  >
+                    <View className="w-64 h-72 rounded-[24px] overflow-hidden border border-white/20 bg-black/40">
+                      <Image
+                        source={imageUrl}
+                        style={{ width: '100%', height: '100%' }}
+                        contentFit="cover"
+                      />
+                      {/* Subtle vignette effect */}
+                      <LinearGradient
+                        colors={["transparent", "rgba(0,0,0,0.3)"]}
+                        style={StyleSheet.absoluteFill}
+                        locations={[0.6, 1]}
+                      />
                     </View>
                   </View>
-                  {next && (
-                    <View className="items-end">
-                      <Text className="text-slate-500 text-[9px] uppercase font-bold tracking-widest mb-1">
-                        Next: {next.name}
+                </View>
+
+                {/* Enhanced Title Block */}
+                <View className="items-center mb-10">
+                  {/* Category Badge with Icon */}
+                  <View
+                    className="flex-row items-center mb-3 px-4 py-2 rounded-full border border-white/20"
+                    style={{ backgroundColor: `${color}30` }}
+                  >
+                    <Ionicons
+                      name={CATEGORY_ICONS[categoryKey] || "star"}
+                      size={14}
+                      color={color}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text
+                      className="text-white text-[11px] uppercase tracking-widest font-bold"
+                      style={{ fontFamily: "GeneralSans-Bold" }}
+                    >
+                      {categoryKey} • Stage {current.stage}
+                    </Text>
+                  </View>
+
+                  {/* Stage Name */}
+                  <Text
+                    className="text-white text-[40px] font-bold leading-tight text-center mb-2"
+                    style={{
+                      fontFamily: "GeneralSans-Bold",
+                      textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                      textShadowOffset: { width: 0, height: 2 },
+                      textShadowRadius: 4,
+                    }}
+                  >
+                    {current.name}
+                  </Text>
+
+                  {/* Decorative underline */}
+                  <View className="flex-row items-center gap-2">
+                    <View className="w-8 h-[2px] rounded-full" style={{ backgroundColor: color }} />
+                    <View className="w-2 h-2 rounded-full" style={{ backgroundColor: color, opacity: 0.6 }} />
+                    <View className="w-8 h-[2px] rounded-full" style={{ backgroundColor: color }} />
+                  </View>
+                </View>
+
+                {/* Premium Message Section */}
+                {message && (
+                  <View className="mb-10 px-1">
+                    <View
+                      className="bg-white/10 backdrop-blur-xl rounded-3xl p-7 border border-white/20"
+                      style={{
+                        shadowColor: '#000',
+                        shadowOpacity: 0.3,
+                        shadowRadius: 20,
+                        shadowOffset: { width: 0, height: 10 },
+                        elevation: 10,
+                      }}
+                    >
+                      {/* Large Quote Mark */}
+                      <Text
+                        className="text-[60px] leading-[40px] mb-2"
+                        style={{ color: color, opacity: 0.4, fontFamily: 'GeneralSans-Bold' }}
+                      >
+                        "
+                      </Text>
+
+                      {/* Message Text */}
+                      <Text
+                        className="text-white text-[18px] leading-[30px] mb-6"
+                        style={{
+                          fontFamily: Platform.OS === 'ios' ? "Georgia" : "serif",
+                          letterSpacing: 0.2,
+                        }}
+                      >
+                        {message}
+                      </Text>
+
+                      {/* Signature Line */}
+                      <View className="flex-row items-center justify-end">
+                        <View className="w-12 h-[1px]" style={{ backgroundColor: color, opacity: 0.5 }} />
+                        <Text
+                          className="text-white/60 text-[13px] ml-3"
+                          style={{ fontFamily: 'GeneralSans-Medium' }}
+                        >
+                          Your {current.name}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* REDESIGNED XP STATS SECTION */}
+                <View className="bg-white/10 rounded-3xl p-6 border border-white/20 mb-8">
+                  {/* Section Header */}
+                  <View className="flex-row items-center mb-5">
+                    <Ionicons name="stats-chart" size={16} color="white" style={{ opacity: 0.9 }} />
+                    <Text
+                      className="text-white text-[13px] font-bold ml-2 tracking-wide uppercase"
+                      style={{ fontFamily: "GeneralSans-Bold" }}
+                    >
+                      Experience Progress
+                    </Text>
+                  </View>
+
+                  {/* XP Stats Row */}
+                  <View className="flex-row justify-between items-start mb-6">
+                    {/* Current XP */}
+                    <View className="flex-1">
+                      <Text className="text-white/70 text-[11px] uppercase font-bold tracking-widest mb-2">
+                        Current XP
                       </Text>
                       <Text
-                        className="text-[12px] font-bold"
-                        style={{ color: color }}
+                        className="text-white text-3xl font-bold"
+                        style={{ fontFamily: "GeneralSans-Bold" }}
                       >
-                        -{xpRemaining} XP needed
+                        {xp.toLocaleString()}
                       </Text>
+                    </View>
+
+                    {/* Vertical Divider */}
+                    <View className="w-[1px] h-12 bg-white/20 mx-4" />
+
+                    {/* Next Stage XP */}
+                    <View className="flex-1 items-end">
+                      <Text className="text-white/70 text-[11px] uppercase font-bold tracking-widest mb-2">
+                        {next ? "Next Stage" : "Status"}
+                      </Text>
+                      <Text
+                        className="text-white text-3xl font-bold"
+                        style={{ fontFamily: "GeneralSans-Bold" }}
+                      >
+                        {next ? (next.minXp - xp).toLocaleString() : "MAX"}
+                      </Text>
+                      {next && (
+                        <Text className="text-white/50 text-[12px] mt-1">
+                          XP needed
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Progress Bar with Enhanced Styling */}
+                  <View className="mb-3">
+                    <View className="h-3 bg-black/50 rounded-full overflow-hidden border border-white/10">
+                      <View
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${progressPercent}%`,
+                          backgroundColor: color,
+                          shadowColor: color,
+                          shadowOpacity: 0.5,
+                          shadowRadius: 4,
+                        }}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Progress Labels & Percentage */}
+                  <View className="flex-row justify-between items-center">
+                    <Text className="text-white/60 text-[11px] font-medium">
+                      {current.name}
+                    </Text>
+                    <View className="bg-white/10 px-2.5 py-1 rounded-full">
+                      <Text
+                        className="text-white text-[11px] font-bold"
+                        style={{ fontFamily: "GeneralSans-Bold" }}
+                      >
+                        {progressPercent.toFixed(0)}%
+                      </Text>
+                    </View>
+                    <Text className="text-white/60 text-[11px] font-medium">
+                      {next ? next.name : "Apex"}
+                    </Text>
+                  </View>
+
+                  {/* Stage Range Info */}
+                  {next && (
+                    <View className="mt-4 pt-4 border-t border-white/10">
+                      <View className="flex-row justify-between">
+                        <View>
+                          <Text className="text-white/50 text-[10px] uppercase tracking-wide mb-1">
+                            Stage {current.stage} Range
+                          </Text>
+                          <Text className="text-white/80 text-[13px] font-medium">
+                            {current.minXp.toLocaleString()} - {(next.minXp - 1).toLocaleString()} XP
+                          </Text>
+                        </View>
+                        <View className="items-end">
+                          <Text className="text-white/50 text-[10px] uppercase tracking-wide mb-1">
+                            Next: {next.name}
+                          </Text>
+                          <Text className="text-white/80 text-[13px] font-medium">
+                            @ {next.minXp.toLocaleString()} XP
+                          </Text>
+                        </View>
+                      </View>
                     </View>
                   )}
                 </View>
-                <View className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-white/5 relative">
-                  <View
-                    className="absolute top-0 bottom-0 left-0 bg-white opacity-20"
-                    style={{ width: `${progressPercent}%` }}
+
+                {/* Sleek Action Button */}
+                <Pressable
+                  onPress={() => setModalVisible(false)}
+                  className="w-full h-16 rounded-[20px] overflow-hidden justify-center items-center active:scale-[0.98]"
+                  style={{
+                    shadowColor: '#000',
+                    shadowOpacity: 0.4,
+                    shadowRadius: 20,
+                    shadowOffset: { width: 0, height: 8 },
+                    elevation: 12,
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#FFFFFF', '#F8F9FA']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                    style={StyleSheet.absoluteFill}
                   />
-                  <View
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${progressPercent}%`,
-                      backgroundColor: color,
-                      shadowColor: color,
-                      shadowOffset: { width: 0, height: 0 },
-                      shadowOpacity: 1,
-                      shadowRadius: 10,
-                      elevation: 5,
-                    }}
-                  />
-                </View>
-              </View>
+                  {/* Colored accent line at top */}
+                  <View className="absolute top-0 left-0 right-0 h-[3px]" style={{ backgroundColor: color }} />
+
+                  <View className="flex-row items-center">
+                    <Text
+                      className="text-[#0F172A] font-bold text-[17px] tracking-wide mr-2"
+                      style={{ fontFamily: "GeneralSans-Bold" }}
+                    >
+                      Close
+                    </Text>
+                    <Ionicons name="checkmark-circle" size={22} color={color} />
+                  </View>
+                </Pressable>
+
+              </ScrollView>
             </View>
           </View>
-        </View>
-      </View>
-    </View>
+        )}
+      </Modal>
+    </>
   );
 };

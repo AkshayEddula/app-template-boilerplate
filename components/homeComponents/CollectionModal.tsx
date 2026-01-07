@@ -28,11 +28,6 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
         return stats.filter(s => s.categoryKey === activeFilter);
     }, [stats, activeFilter]);
 
-    const ORIGINAL_CARD_WIDTH = SCREEN_WIDTH * 0.85;
-    const PADDING = 16;
-    const AVAILABLE_WIDTH = SCREEN_WIDTH - (PADDING * 2);
-    const SCALE_FACTOR = Math.min(1, AVAILABLE_WIDTH / ORIGINAL_CARD_WIDTH);
-
     return (
         <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={onClose}>
 
@@ -200,12 +195,17 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
                     <FlatList
                         data={filteredData}
                         keyExtractor={(item) => item.categoryKey}
+                        key={activeFilter}
+                        numColumns={2}
                         contentContainerStyle={{
                             paddingTop: 10,
                             paddingBottom: 80,
-                            paddingHorizontal: PADDING,
-                            alignItems: 'center',
-                            gap: 24,
+                            paddingHorizontal: 12,
+                        }}
+                        columnWrapperStyle={{
+                            gap: 4,
+                            marginBottom: 0,
+                            justifyContent: 'space-between',
                         }}
                         showsVerticalScrollIndicator={false}
                         renderItem={({ item, index }) => (
@@ -221,7 +221,6 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
                                     imageUrl={item.imageUrl}
                                     categoryKey={item.categoryKey}
                                     xp={item.totalXp}
-                                    scale={SCALE_FACTOR}
                                 />
                             </Animated.View>
                         )}

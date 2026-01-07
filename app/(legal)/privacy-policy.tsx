@@ -91,7 +91,7 @@ export default function PrivacyPolicyScreen() {
                                     If you have any questions or concerns about this Privacy Policy, you may contact us at:
                                 </Text>
                                 <Text className="text-white font-generalsans-semibold mt-2">
-                                    Email: levora.contact@gmail.com
+                                    Email: conatactlevora@gmail.com
                                 </Text>
                             </Section>
 
