@@ -1,11 +1,16 @@
+import { LockedView } from "@/components/LockedView";
+import { PaywallModal } from "@/components/Paywall";
+import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from "@/convex/_generated/api";
+import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { Fire02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 import { useQuery } from "convex/react";
 import { BlurView } from "expo-blur";
 import { GlassView } from "expo-glass-effect";
-import { useMemo } from "react";
+import { useRouter } from "expo-router";
+import { useMemo, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -173,6 +178,40 @@ export const StreakModal = ({
       .sort((a, b) => (b.currentStreak || 0) - (a.currentStreak || 0));
   }, [propResolutions, analyticsData]);
 
+  const { isPremium } = useSubscription();
+  const { isSignedIn } = useAuth();
+  const router = useRouter();
+  const [paywallVisible, setPaywallVisible] = useState(false);
+
+  const isLocked = !isPremium || !isSignedIn;
+
+  const handleUnlock = () => {
+    if (!isPremium) {
+      setPaywallVisible(true);
+    } else if (!isSignedIn) {
+      onClose();
+      router.push('/(auth)/sign-up');
+    }
+  };
+
+  const getLockedState = () => {
+    if (!isPremium) {
+      return {
+        message: "Upgrade to Premium to view detailed streak history.",
+        buttonText: "Unlock Access"
+      };
+    }
+    if (!isSignedIn) {
+      return {
+        message: "Sign in to save and view your streak history.",
+        buttonText: "Sign In / Register"
+      };
+    }
+    return { message: "Locked", buttonText: "Unlock" };
+  };
+
+  const { message, buttonText } = getLockedState();
+
   return (
     <Modal
       animationType="slide"
@@ -215,7 +254,16 @@ export const StreakModal = ({
           />
         )}
 
-        <View className="z-20 pt-8 pb-2">
+        {/* Lock View */}
+        {isLocked && (
+          <LockedView
+            onUnlock={handleUnlock}
+            message={message}
+            buttonText={buttonText}
+          />
+        )}
+
+        <View className="z-50 pt-8 pb-2">
           <View className="px-6 flex-row justify-between items-start mb-4">
             <View
               style={{
@@ -332,6 +380,11 @@ export const StreakModal = ({
           />
         </View>
       </Animated.View>
+
+      <PaywallModal
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+      />
     </Modal>
   );
 };

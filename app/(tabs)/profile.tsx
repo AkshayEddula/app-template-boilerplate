@@ -1,4 +1,5 @@
 import { PaywallModal } from "@/components/Paywall";
+import { useGuest } from "@/context/GuestContext";
 import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from "@/convex/_generated/api";
 import { useAuth, useUser } from "@clerk/clerk-expo";
@@ -134,9 +135,15 @@ export default function ProfileScreen() {
   const { isPremium } = useSubscription();
 
   // Queries
-  const user = useQuery(api.users.currentUser);
-  const stats = useQuery(api.stats.getMyStats);
-  const resolutions = useQuery(api.userResolutions.listActive);
+  const { isGuest, logoutGuest, guestResolutions } = useGuest();
+
+  // Queries
+  const convexUser = useQuery(api.users.currentUser);
+  const user = isGuest ? { name: "Guest User", email: undefined, currentStreak: 0, _id: "guest" } : convexUser;
+
+  const stats = useQuery(api.stats.getMyStats, isGuest ? "skip" : undefined);
+  const convexResolutions = useQuery(api.userResolutions.listActive, isGuest ? "skip" : undefined);
+  const resolutions = isGuest ? guestResolutions : convexResolutions;
 
   // Mutations
   const deleteUserMutation = useMutation(api.users.deleteUser);
@@ -160,7 +167,14 @@ export default function ProfileScreen() {
       {
         text: "Sign Out",
         style: "destructive",
-        onPress: () => signOut(),
+        onPress: () => {
+          if (isGuest) {
+            logoutGuest();
+            router.replace("/(auth)/sign-up");
+          } else {
+            signOut();
+          }
+        },
       },
     ]);
   };
@@ -175,9 +189,14 @@ export default function ProfileScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            if (!user) return;
             try {
               setIsDeleting(true);
+              if (isGuest) {
+                await logoutGuest(); // Just clear local data
+                router.replace("/(auth)/sign-up");
+                return;
+              }
+              if (!user) return;
               await deleteUserMutation();
               await clerkUser?.delete();
             } catch (error) {
@@ -251,7 +270,7 @@ export default function ProfileScreen() {
                 </View>
 
                 <Text className="text-white/60 font-generalsans-medium text-base">
-                  {user?.email || clerkUser?.primaryEmailAddress?.emailAddress}
+                  {isGuest ? "Local Guest Account" : (user?.email || clerkUser?.primaryEmailAddress?.emailAddress)}
                 </Text>
               </View>
             </View>
@@ -318,7 +337,7 @@ export default function ProfileScreen() {
                     <MenuRow
                       icon={Mail01Icon}
                       label="Email"
-                      value={clerkUser?.primaryEmailAddress?.emailAddress}
+                      value={isGuest ? "Not linked" : clerkUser?.primaryEmailAddress?.emailAddress}
                       showArrow={false}
                     />
                     <MenuRow

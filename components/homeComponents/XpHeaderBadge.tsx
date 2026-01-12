@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import Animated, { Easing, FadeInDown, FadeOutUp, useAnimatedStyle, withTiming } from "react-native-reanimated";
+import Animated, { Easing, FadeInDown, FadeOutUp } from "react-native-reanimated";
 // IMPORTANT: Ensure this path points to where you saved the XPModal file
 import { XPModal } from "./XPModal";
 
@@ -15,7 +15,7 @@ const CATEGORY_COLORS: Record<string, string> = {
     career: '#2563EB', // Blue
     life: '#D97706',   // Amber
     fun: '#DB2777',    // Pink
-    default: '#475569' // Slate
+    default: '#64748B' // Slate
 };
 
 const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -67,70 +67,67 @@ export const XPHeaderBadge = () => {
     const activeCategory = currentStat ? currentStat.categoryKey : 'default';
     const activeColor = CATEGORY_COLORS[activeCategory] || CATEGORY_COLORS.default;
 
-    // Smoothly transition the background border/tint color
-    const animatedStyle = useAnimatedStyle(() => {
-        return {
-            backgroundColor: withTiming(activeColor, { duration: 500 })
-        };
-    }, [activeColor]);
-
     // Don't render until data loads
     if (!currentStat) return null;
 
     return (
-        <View className="shadow-sm">
+        <>
             {/* --- BADGE COMPONENT --- */}
-            <Animated.View
-                style={[
-                    animatedStyle,
-                    {
-                        borderRadius: 999,
-                        overflow: 'hidden',
-                        borderWidth: 1,
-                        borderColor: 'rgba(255, 255, 255, 0.25)', // Subtle frost border
-                    }
-                ]}
+            <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setShowXPModal(true)}
+                style={{
+                    backgroundColor: 'white',
+                    height: 36,
+                    borderRadius: 18,
+                    paddingLeft: 4,
+                    paddingRight: 10,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 8,
+                    elevation: 2,
+                }}
             >
-                <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => setShowXPModal(true)}
-                    className="flex-row items-center pl-1 pr-3 py-1 bg-transparent"
+                {/* Animated Content Container */}
+                <Animated.View
+                    key={currentStat.categoryKey}
+                    entering={FadeInDown.duration(300).easing(Easing.out(Easing.cubic))}
+                    exiting={FadeOutUp.duration(200)}
+                    className="flex-row items-center gap-1.5"
                 >
-                    {/* Animated Content Container */}
-                    <Animated.View
-                        // Unique key ensures React Reanimated treats this as a new element for entry/exit
-                        key={currentStat.categoryKey}
-                        entering={FadeInDown.duration(300).easing(Easing.out(Easing.cubic))}
-                        exiting={FadeOutUp.duration(200)}
-                        className="flex-row items-center gap-2"
+                    {/* Icon Circle */}
+                    <View
+                        className="w-7 h-7 rounded-full items-center justify-center"
+                        style={{ backgroundColor: activeColor + '15' }}
                     >
-                        {/* Icon Circle */}
-                        <View className="w-7 h-7 rounded-full bg-white/20 items-center justify-center border border-white/10">
-                            <Ionicons
-                                name={CATEGORY_ICONS[currentStat.categoryKey] || 'star'}
-                                size={14}
-                                color="white"
-                            />
-                        </View>
+                        <Ionicons
+                            name={CATEGORY_ICONS[currentStat.categoryKey] || 'star'}
+                            size={13}
+                            color={activeColor}
+                        />
+                    </View>
 
-                        {/* Text Details */}
-                        <View>
-                            <Text className="text-[9px] font-generalsans-medium text-white/90 uppercase leading-3 tracking-wide">
-                                {currentStat.categoryKey}
-                            </Text>
-                            <Text className="text-sm font-generalsans-bold text-white leading-4">
-                                {currentStat.totalXp.toLocaleString()} XP
-                            </Text>
-                        </View>
-                    </Animated.View>
-                </TouchableOpacity>
-            </Animated.View>
+                    {/* Text Details */}
+                    <View>
+                        <Text className="text-[9px] font-inter-bold uppercase leading-3 tracking-wide" style={{ color: '#94A3B8' }}>
+                            {currentStat.categoryKey}
+                        </Text>
+                        <Text className="text-[13px] font-inter-bold leading-4" style={{ color: '#1E293B' }}>
+                            {currentStat.totalXp.toLocaleString()} XP
+                        </Text>
+                    </View>
+                </Animated.View>
+            </TouchableOpacity>
 
             {/* --- THE XP MODAL --- */}
             <XPModal
                 visible={showXPModal}
                 onClose={() => setShowXPModal(false)}
             />
-        </View>
+        </>
     );
 };

@@ -43,8 +43,8 @@ export const storeUser = mutation({
 
 export const completeOnboarding = mutation({
   args: {
-    goal: v.string(),
-    experience: v.string(),
+    goal: v.optional(v.string()),
+    experience: v.optional(v.string()),
     is_onboarded: v.boolean(),
   },
   handler: async (ctx, args) => {
@@ -60,11 +60,11 @@ export const completeOnboarding = mutation({
 
     if (!user) throw new Error("User not found");
 
-    await ctx.db.patch(user._id, {
-      is_onboarded: args.is_onboarded,
-      goal: args.goal,
-      experience: args.experience,
-    });
+    const updates: any = { is_onboarded: args.is_onboarded };
+    if (args.goal !== undefined) updates.goal = args.goal;
+    if (args.experience !== undefined) updates.experience = args.experience;
+
+    await ctx.db.patch(user._id, updates);
   },
 });
 

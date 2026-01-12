@@ -1,3 +1,6 @@
+import { PaywallModal } from "@/components/Paywall";
+import { useGuest } from '@/context/GuestContext';
+import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { Ionicons } from '@expo/vector-icons';
@@ -128,6 +131,11 @@ export default function CreateResolution() {
 
     const categories = useQuery(api.categories.list);
     const createResolution = useMutation(api.userResolutions.create);
+    const { isGuest, addGuestResolution, guestResolutions } = useGuest();
+    const { isPremium } = useSubscription();
+    // Fetch active resolutions to check limit
+    const resolutions = useQuery(api.userResolutions.listActive);
+    const [paywallVisible, setPaywallVisible] = useState(false);
 
     const [selectedCategory, setSelectedCategory] = useState<CategoryKey | null>(null);
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -165,6 +173,13 @@ export default function CreateResolution() {
     };
 
     const handleCreate = async () => {
+        // --- LIMIT CHECK ---
+        const currentCount = isGuest ? guestResolutions.length : (resolutions?.length || 0);
+        if (!isPremium && currentCount >= 2) {
+            setPaywallVisible(true);
+            return;
+        }
+
         if (!selectedCategory) return Alert.alert("Wait", "Select focus.");
         if (!title.trim()) return Alert.alert("Wait", "Name your goal.");
 
@@ -176,6 +191,21 @@ export default function CreateResolution() {
         else finalDays = customDays;
 
         try {
+            if (isGuest) {
+                await addGuestResolution({
+                    categoryKey: selectedCategory,
+                    title,
+                    trackingType: trackingType as any,
+                    frequencyType: frequency as any,
+                    customDays: finalDays,
+                    targetCount: trackingType === 'count_based' ? parseInt(targetValue) : undefined,
+                    targetTime: trackingType === 'time_based' ? parseInt(targetValue) : undefined,
+                    countUnit: trackingType === 'count_based' ? countUnit : undefined,
+                });
+                router.back();
+                return;
+            }
+
             await createResolution({
                 categoryKey: selectedCategory,
                 title,
@@ -443,6 +473,12 @@ export default function CreateResolution() {
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
+
+            {/* Paywall Modal */}
+            <PaywallModal
+                visible={paywallVisible}
+                onClose={() => setPaywallVisible(false)}
+            />
         </LinearGradient>
     );
 }

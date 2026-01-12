@@ -6,6 +6,7 @@ import { StreakModal } from "@/components/homeComponents/StreakModal";
 import { TrackingModal } from "@/components/homeComponents/TrackingModal";
 import { XPHeaderBadge } from "@/components/homeComponents/XpHeaderBadge";
 import { PaywallModal } from "@/components/Paywall"; // <--- 1. IMPORT PAYWALL
+import { useGuest } from "@/context/GuestContext"; // <--- IMPORT GUEST CONTEXT
 import { useSubscription } from "@/context/SubscriptionContext"; // <--- 2. IMPORT CONTEXT
 import { api } from "@/convex/_generated/api";
 import { Ionicons } from "@expo/vector-icons";
@@ -203,13 +204,15 @@ export default function HomeScreen() {
   const { isPremium } = useSubscription(); // <--- 3. GET PREMIUM STATUS
 
   // Queries
+  const { isGuest, guestResolutions } = useGuest();
   const user = useQuery(api.users.currentUser);
   const resolutions = useQuery(api.userResolutions.listActive);
   const allCards = useQuery(api.stats.getAllCards);
   const todayStr = new Date().toISOString().split("T")[0];
   const todayLogs = useQuery(api.resolutions.getTodayLogs, { date: todayStr });
 
-  const isLoading = resolutions === undefined || todayLogs === undefined;
+  const finalResolutions = isGuest ? guestResolutions : resolutions;
+  const isLoading = isGuest ? false : (resolutions === undefined || todayLogs === undefined);
 
   // State
   const [selectedResolution, setSelectedResolution] =
@@ -234,20 +237,35 @@ export default function HomeScreen() {
   const containerWidth = useSharedValue(0);
 
   const sortedResolutions = useMemo(() => {
-    if (!resolutions) return [];
-    return resolutions
+    if (!finalResolutions) return [];
+    // Cast strictly for mapping if needed, or use 'any' if types mismatch
+    return (finalResolutions as any[])
       .filter((item) => {
-        const isToday = isTaskToday(item);
-        const isCompleted = todayLogs?.find(
-          (l) => l.userResolutionId === item._id,
-        )?.isCompleted;
+        const isToday = isTaskToday(item as Resolution);
+
+        let isCompleted = false;
+        if (isGuest) {
+          isCompleted = item.logs?.[todayStr]?.isCompleted || false;
+        } else {
+          isCompleted = todayLogs?.find(
+            (l) => l.userResolutionId === item._id,
+          )?.isCompleted || false;
+        }
+
         if (selectedDayFilter === "today") return isToday;
         if (selectedDayFilter === "pending") return isToday && !isCompleted;
         if (selectedDayFilter === "completed") return isToday && isCompleted;
         return true;
       })
-      .sort((a, b) => (isTaskToday(b) ? 1 : -1));
-  }, [resolutions, todayLogs, selectedDayFilter]);
+      .sort((a, b) => (isTaskToday(a as Resolution) ? (isTaskToday(b as Resolution) ? 0 : -1) : 1))
+      .sort((a, b) => {
+        // Put incomplete first
+        const aComp = isGuest ? a.logs?.[todayStr]?.isCompleted : todayLogs?.find(l => l.userResolutionId === a._id)?.isCompleted;
+        const bComp = isGuest ? b.logs?.[todayStr]?.isCompleted : todayLogs?.find(l => l.userResolutionId === b._id)?.isCompleted;
+        if (aComp === bComp) return 0;
+        return aComp ? 1 : -1;
+      });
+  }, [finalResolutions, todayLogs, selectedDayFilter, isGuest, todayStr]);
 
   useEffect(() => {
     const idx = FILTER_DAYS.findIndex((f) => f.key === selectedDayFilter);
@@ -432,8 +450,9 @@ export default function HomeScreen() {
                   index={index}
                   currentFilter={selectedDayFilter}
                   isCompleted={
-                    todayLogs?.find((l) => l.userResolutionId === item._id)
-                      ?.isCompleted
+                    isGuest
+                      ? (item as any).logs?.[todayStr]?.isCompleted
+                      : todayLogs?.find((l) => l.userResolutionId === item._id)?.isCompleted
                   }
                   onPress={() => {
                     const isAvailable = isTaskToday(item);
@@ -464,9 +483,12 @@ export default function HomeScreen() {
         readOnly={isModalReadOnly}
         initialValue={
           selectedResolution
-            ? todayLogs?.find(
-              (l) => l.userResolutionId === selectedResolution._id,
-            )?.currentValue
+            ? (isGuest
+              ? ((selectedResolution as any).logs?.[todayStr]?.value || 0)
+              : todayLogs?.find(
+                (l) => l.userResolutionId === selectedResolution._id,
+              )?.currentValue
+            )
             : 0
         }
         onLevelUp={(cat, newXp, oldXp) => {

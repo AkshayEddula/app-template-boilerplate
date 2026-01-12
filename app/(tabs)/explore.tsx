@@ -1,5 +1,8 @@
 import { CharacterCard } from "@/components/homeComponents/CharacterCard";
+import { PaywallModal } from "@/components/Paywall";
+import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from "@/convex/_generated/api";
+import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import {
   ChampionIcon,
@@ -12,6 +15,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 import { useQuery } from "convex/react";
+import { BlurView } from "expo-blur";
 import { GlassView } from "expo-glass-effect";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -143,14 +147,88 @@ const createSmoothPath = (
   return { path: d, lastPoint: points[points.length - 1], points };
 };
 
+// --- LOCKED VIEW COMPONENT ---
+const LockedView = ({ onUnlock, message, buttonText }: { onUnlock: () => void, message: string, buttonText: string }) => (
+  <View style={[StyleSheet.absoluteFill, { zIndex: 45, alignItems: 'center', justifyContent: 'center' }]}>
+    <BlurView
+      intensity={20}
+      tint="dark"
+      style={StyleSheet.absoluteFill}
+    />
+    {/* Gradient Overlay for extra depth */}
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.4)' }]} />
+
+    <View className="items-center px-8 w-full max-w-[400px]">
+      {/* Icon Container with Glow */}
+      <View className="mb-8 relative items-center justify-center">
+        {/* <View className="absolute w-[120px] h-[120px] bg-[#3A7AFE]/30 rounded-full blur-2xl" /> */}
+        <View
+          className="w-32 h-32 rounded-full items-center justify-center border border-white/10 relative"
+          style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+            shadowColor: '#3A7AFE',
+            shadowOffset: { width: 0, height: 0 },
+            borderRadius: 64,
+            shadowOpacity: 0.5,
+            shadowRadius: 20,
+          }}
+        >
+          <GlassView glassEffectStyle="regular" style={{ ...StyleSheet.absoluteFillObject, borderRadius: 64 }} tintColor="#3A7AFE" />
+          <HugeiconsIcon icon={LockKeyIcon} size={42} color="#FFFFFF" variant="solid" />
+        </View>
+      </View>
+
+      <Text className="text-white font-generalsans-bold text-[32px] text-center mb-3 tracking-tight">
+        Premium Access
+      </Text>
+      <Text className="text-white/70 font-generalsans-medium text-[16px] text-center leading-6 mb-10">
+        {message}
+      </Text>
+
+      <TouchableOpacity
+        onPress={onUnlock}
+        activeOpacity={0.8}
+        className="w-full"
+      >
+        <View
+          style={{
+            shadowColor: '#3A7AFE',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
+            elevation: 8,
+          }}
+        >
+          <GlassView
+            glassEffectStyle="regular"
+            tintColor="#3A7AFE"
+            style={{
+              height: 60,
+              borderRadius: 20,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.2)'
+            }}
+          >
+            <Text className="text-white font-generalsans-bold text-[18px]">
+              {buttonText}
+            </Text>
+          </GlassView>
+        </View>
+      </TouchableOpacity>
+    </View>
+  </View>
+);
+
 export default function AnalyticsScreen() {
   const router = useRouter();
-  const [currentTab, setCurrentTab] = useState<MainTab>("analytics");
+  const [currentTab, setCurrentTab] = useState<MainTab>("vault");
 
   // Track which tabs have been visited to lazy-load them
   const [loadedTabs, setLoadedTabs] = useState({
-    analytics: true,
-    vault: false,
+    analytics: false,
+    vault: true,
     challenge: false,
   });
 
@@ -160,6 +238,43 @@ export default function AnalyticsScreen() {
       setLoadedTabs((prev) => ({ ...prev, [key]: true }));
     }
   };
+
+  const [paywallVisible, setPaywallVisible] = useState(false);
+  const { isPremium } = useSubscription();
+  const { isSignedIn } = useAuth();
+  const isLocked = !isPremium || !isSignedIn;
+
+  const handleUnlock = () => {
+    if (!isPremium) {
+      setPaywallVisible(true);
+    } else if (!isSignedIn) {
+      router.replace('/(auth)/sign-up');
+    }
+  };
+
+  /* Locked View Logic */
+  const getLockedState = () => {
+    // 1. If not Premium (Guest or Free), prompt to Upgrade FIRST
+    if (!isPremium) {
+      return {
+        message: "Upgrade to Premium to access advanced analytics, the Vault, and Challenges.",
+        buttonText: "Unlock Access"
+      };
+    }
+    // 2. If Premium but Guest, prompt to Sign In
+    if (!isSignedIn) {
+      return {
+        message: "Sign in to sync your data and view your analytics.",
+        buttonText: "Sign In / Register"
+      };
+    }
+    return {
+      message: "Locked",
+      buttonText: "Unlock"
+    };
+  };
+
+  const { message: lockMessage, buttonText: lockBtnText } = getLockedState();
 
   return (
     <View className="flex-1 bg-[#3A7AFE]">
@@ -224,7 +339,17 @@ export default function AnalyticsScreen() {
             {loadedTabs.challenge && <ChallengeView />}
           </View>
         </View>
+
+        {/* --- GLOBAL LOCKED OVERLAY --- */}
+        {isLocked && (
+          <LockedView onUnlock={handleUnlock} message={lockMessage} buttonText={lockBtnText} />
+        )}
       </SafeAreaView>
+
+      <PaywallModal
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+      />
     </View>
   );
 }
@@ -954,7 +1079,7 @@ function ResolutionStatsCard({
                     color="#F97316"
                     variant="solid"
                   />
-                  <Text className="text-[#1E293B] font-generalsans-bold text-[32px] mx-1 leading-8">
+                  <Text className="text-[#1E293B] font-generalsans-bold text-[32px] mx-1 leading-10">
                     {currentStreak}
                   </Text>
                   <HugeiconsIcon
@@ -995,7 +1120,7 @@ function ResolutionStatsCard({
                     color="#EAB308"
                     variant="solid"
                   />
-                  <Text className="text-[#1E293B] font-generalsans-bold text-[32px] mx-1 leading-8">
+                  <Text className="text-[#1E293B] font-generalsans-bold text-[32px] mx-1 leading-10">
                     {bestStreak}
                   </Text>
                   <HugeiconsIcon

@@ -1,8 +1,13 @@
+import { LockedView } from "@/components/LockedView";
+import { PaywallModal } from "@/components/Paywall";
+import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from "@/convex/_generated/api";
+import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { BlurView } from "expo-blur";
 import { GlassView } from "expo-glass-effect";
+import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Dimensions, FlatList, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, { Easing, FadeInDown, FadeOut, Layout } from "react-native-reanimated";
@@ -27,6 +32,40 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
         if (activeFilter === 'all') return stats;
         return stats.filter(s => s.categoryKey === activeFilter);
     }, [stats, activeFilter]);
+
+    const { isPremium } = useSubscription();
+    const { isSignedIn } = useAuth();
+    const router = useRouter();
+    const [paywallVisible, setPaywallVisible] = useState(false);
+
+    const isLocked = !isPremium || !isSignedIn;
+
+    const handleUnlock = () => {
+        if (!isPremium) {
+            setPaywallVisible(true);
+        } else if (!isSignedIn) {
+            onClose();
+            router.push('/(auth)/sign-up');
+        }
+    };
+
+    const getLockedState = () => {
+        if (!isPremium) {
+            return {
+                message: "Upgrade to Premium to view your card collection.",
+                buttonText: "Unlock Access"
+            };
+        }
+        if (!isSignedIn) {
+            return {
+                message: "Sign in to save and view your collected cards.",
+                buttonText: "Sign In / Register"
+            };
+        }
+        return { message: "Locked", buttonText: "Unlock" };
+    };
+
+    const { message, buttonText } = getLockedState();
 
     return (
         <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={onClose}>
@@ -71,8 +110,17 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
                     />
                 )}
 
+                {/* Lock View */}
+                {isLocked && (
+                    <LockedView
+                        onUnlock={handleUnlock}
+                        message={message}
+                        buttonText={buttonText}
+                    />
+                )}
+
                 {/* --- HEADER SECTION --- */}
-                <View className="z-20 pt-8 pb-4">
+                <View className="z-50 pt-8 pb-4">
 
                     {/* Top Row: Badge & Close Button */}
                     <View className="px-6 flex-row justify-between items-start mb-2">
@@ -237,6 +285,11 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
                     />
                 </View>
             </Animated.View>
-        </Modal>
+
+            <PaywallModal
+                visible={paywallVisible}
+                onClose={() => setPaywallVisible(false)}
+            />
+        </Modal >
     );
 };

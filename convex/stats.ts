@@ -73,22 +73,24 @@ export const getAllCards = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_token", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier),
-      )
-      .unique();
+    let userStats: any[] = [];
 
-    if (!user) return [];
+    if (identity) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_token", (q) =>
+          q.eq("tokenIdentifier", identity.tokenIdentifier),
+        )
+        .unique();
 
-    // Get User's XP Stats
-    const userStats = await ctx.db
-      .query("userCategoryStats")
-      .withIndex("by_user_category", (q) => q.eq("userId", user._id))
-      .collect();
+      if (user) {
+        userStats = await ctx.db
+          .query("userCategoryStats")
+          .withIndex("by_user_category", (q) => q.eq("userId", user._id))
+          .collect();
+      }
+    }
 
     // Get ALL Stages
     const allStages = await ctx.db.query("characterStages").collect();

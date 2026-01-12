@@ -1,4 +1,5 @@
 import UpdateModal from "@/components/UpdateModal";
+import { GuestProvider, useGuest } from "@/context/GuestContext";
 import { SubscriptionProvider } from "@/context/SubscriptionContext";
 import { ClerkLoaded, ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { ConvexReactClient, useMutation, useQuery } from "convex/react";
@@ -8,6 +9,7 @@ import { useFonts } from "expo-font";
 import * as Linking from "expo-linking";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import { api } from "../convex/_generated/api";
@@ -58,7 +60,9 @@ function ConvexWrapper() {
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         {/* 👇 Wrap InitialLayout with SubscriptionProvider */}
         <SubscriptionProvider>
-          <InitialLayout />
+          <GuestProvider>
+            <InitialLayout />
+          </GuestProvider>
         </SubscriptionProvider>
       </ConvexProviderWithClerk>
     </ClerkLoaded>
@@ -69,6 +73,7 @@ function ConvexWrapper() {
 // Fixed hook order by moving useFonts to top level
 function InitialLayout() {
   const { isLoaded, isSignedIn } = useAuth();
+  const { isGuest, hasCompletedOnboarding, isLoading: isGuestLoading } = useGuest();
   const segments = useSegments();
   const router = useRouter();
 
@@ -167,9 +172,8 @@ function InitialLayout() {
     // Only run navigation logic when:
     // 1. Auth is loaded
     // 2. We have attempted to initialize the user (storeUser)
-    // 3. If signed in, we have the user data from useQuery (or know it's null/loading)
-    if (!isLoaded || !isUserInitialized) return;
-
+    // 3. If signed in, we have the user data from useQuery (or know it's  useEffect(() => {
+    if (!isLoaded || !isUserInitialized || isGuestLoading) return;
     const inAuthGroup = segments[0] === "(auth)";
     const inLegalGroup = segments[0] === "(legal)";
 
@@ -186,13 +190,25 @@ function InitialLayout() {
         }
       } else if (inAuthGroup) {
         // User is signed in and onboarded, but in auth group (login/signup pages) -> go to tabs
+        // EXCEPTION: Allow onboarding-steps to handle its own exit (e.g. Paywall flow)
+        if (segments[1] === "onboarding-steps") return;
+
         router.replace("/(tabs)");
       }
+    } else if (isGuest) {
+      if (!hasCompletedOnboarding) {
+        if (segments[0] !== "(auth)" || segments[1] !== "onboarding-steps") {
+          router.replace("/(auth)/onboarding-steps");
+        }
+      } else if (inAuthGroup) {
+        if (segments[1] === "onboarding-steps") return;
+        router.replace("/(tabs)");
+      }
+      // Allowed to access auth screens if desired
     } else if (!isSignedIn && !inAuthGroup && !inLegalGroup) {
-      // Not signed in and not in auth group or legal group -> go to login
       router.replace("/(auth)/sign-up");
     }
-  }, [isSignedIn, isLoaded, isUserInitialized, user, segments]);
+  }, [isSignedIn, isLoaded, isUserInitialized, user, segments, isGuest, hasCompletedOnboarding, isGuestLoading]);
 
   // Handle Update Action
   const handleUpdate = () => {
@@ -226,7 +242,7 @@ function InitialLayout() {
   const inAuthGroup = segments[0] === "(auth)";
   const inLegalGroup = segments[0] === "(legal)";
 
-  if (!isSignedIn && !inAuthGroup && !inLegalGroup) {
+  if (!isSignedIn && !isGuest && !inAuthGroup && !inLegalGroup) {
     return null;
   }
 
@@ -237,13 +253,14 @@ function InitialLayout() {
 
   // If signed in and onboarded, but still on auth pages (while redirecting to tabs)
   if (isSignedIn && user?.is_onboarded && inAuthGroup) {
-    return null;
+    if (segments[1] !== "onboarding-steps") return null;
   }
 
   // Inside your InitialLayout or RootLayout where you have the <Slot /> or <Stack />
   return (
     <>
       <Stack>
+        <StatusBar style="dark" />
         {/* The main tab group */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />

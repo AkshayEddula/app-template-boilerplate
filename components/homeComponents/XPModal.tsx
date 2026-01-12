@@ -1,9 +1,12 @@
+import { PaywallModal } from "@/components/Paywall";
+import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from "@/convex/_generated/api";
+import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
-import { BlurView } from "expo-blur";
 import { GlassView } from "expo-glass-effect";
-import { useMemo } from "react";
+import { useRouter } from "expo-router";
+import { useMemo, useState } from "react";
 import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, { Easing, FadeInDown } from "react-native-reanimated";
 
@@ -26,13 +29,43 @@ export const XPModal = ({ visible, onClose }: { visible: boolean, onClose: () =>
         }), { grandTotal: 0, todayTotal: 0 });
     }, [stats]);
 
+    const { isPremium } = useSubscription();
+    const { isSignedIn } = useAuth();
+    const router = useRouter();
+    const [paywallVisible, setPaywallVisible] = useState(false);
+
+    const isLocked = !isPremium || !isSignedIn;
+
+    const handleUnlock = () => {
+        if (!isPremium) {
+            setPaywallVisible(true);
+        } else if (!isSignedIn) {
+            onClose();
+            router.push('/(auth)/sign-up');
+        }
+    };
+
+    const getLockedState = () => {
+        if (!isPremium) {
+            return {
+                message: "Upgrade to Premium to view detailed value statistics.",
+                buttonText: "Unlock Access"
+            };
+        }
+        if (!isSignedIn) {
+            return {
+                message: "Sign in to save and view your XP progress.",
+                buttonText: "Sign In / Register"
+            };
+        }
+        return { message: "Locked", buttonText: "Unlock" };
+    };
+
+    const { message, buttonText } = getLockedState();
+
     return (
         <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={onClose}>
-            {/* 1. Backdrop */}
-            <View style={StyleSheet.absoluteFill}>
-                <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
-                <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} onPress={onClose} activeOpacity={1} />
-            </View>
+
 
             {/* 2. Main Modal Sheet */}
             <Animated.View
@@ -65,6 +98,8 @@ export const XPModal = ({ visible, onClose }: { visible: boolean, onClose: () =>
                     />
                 )}
 
+
+
                 {/* --- CONTENT --- */}
                 <View className="p-8 pb-10">
 
@@ -77,7 +112,7 @@ export const XPModal = ({ visible, onClose }: { visible: boolean, onClose: () =>
                             </Text>
                         </View>
 
-                        <Text className="text-white font-bricolagegrotesk-bold text-[72px] leading-[80px] tracking-[-6px]">
+                        <Text className="text-white font-bricolagegrotesk-bold text-[72px] leading-[90px] tracking-[-6px] text-center" style={{ paddingHorizontal: 10 }}>
                             {totals.grandTotal.toLocaleString()}
                         </Text>
 
@@ -164,7 +199,7 @@ export const XPModal = ({ visible, onClose }: { visible: boolean, onClose: () =>
                     <TouchableOpacity
                         onPress={onClose}
                         activeOpacity={0.8}
-                        className="mt-10 self-center"
+                        className="mt-10 self-center z-50"
                     >
                         <View className="w-12 h-12 rounded-full bg-white/10 border border-white/10 items-center justify-center">
                             <Ionicons name="close" size={20} color="white" />
@@ -173,6 +208,11 @@ export const XPModal = ({ visible, onClose }: { visible: boolean, onClose: () =>
 
                 </View>
             </Animated.View>
+
+            <PaywallModal
+                visible={paywallVisible}
+                onClose={() => setPaywallVisible(false)}
+            />
         </Modal>
     );
 };

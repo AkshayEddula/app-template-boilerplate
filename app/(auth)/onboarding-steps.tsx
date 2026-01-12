@@ -1,28 +1,25 @@
 import { PaywallModal } from '@/components/Paywall';
+import { useGuest } from '@/context/GuestContext';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { api } from '@/convex/_generated/api';
+import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from 'convex/react';
-import { GlassView } from 'expo-glass-effect';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
-    useWindowDimensions
+    useWindowDimensions,
+    View
 } from 'react-native';
 import Animated, {
-    FadeIn,
     FadeInDown,
     FadeInRight,
     FadeOutLeft,
@@ -31,7 +28,8 @@ import Animated, {
     useSharedValue,
     withRepeat,
     withSequence,
-    withTiming
+    withTiming,
+    ZoomIn
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -41,16 +39,17 @@ type TrackingType = 'yes_no' | 'time_based' | 'count_based';
 type FrequencyType = 'daily' | 'weekdays' | 'weekends' | 'custom' | 'x_days_per_week';
 
 // --- Theme Config ---
-const CATEGORY_CONFIG: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; bgColor: string }> = {
-    health: { icon: 'water', color: '#059669', bgColor: '#ECFDF5' }, // Emerald dark text, light bg
-    mind: { icon: 'prism', color: '#7C3AED', bgColor: '#F5F3FF' }, // Violet
-    career: { icon: 'briefcase', color: '#D97706', bgColor: '#FFFBEB' }, // Amber
-    life: { icon: 'compass', color: '#2563EB', bgColor: '#EFF6FF' }, // Blue
-    fun: { icon: 'color-palette', color: '#DB2777', bgColor: '#FDF2F8' }, // Pink
-    default: { icon: 'star', color: '#475569', bgColor: '#F8FAFC' } // Slate
+// Keeping colors but adjusting bg opacity for cleaner look
+const CATEGORY_CONFIG: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; bgColor: string; accent: string }> = {
+    health: { icon: 'leaf', color: '#059669', bgColor: '#ECFDF5', accent: '#34D399' },
+    mind: { icon: 'prism', color: '#7C3AED', bgColor: '#F5F3FF', accent: '#A78BFA' },
+    career: { icon: 'briefcase', color: '#D97706', bgColor: '#FFFBEB', accent: '#FBBF24' },
+    life: { icon: 'compass', color: '#2563EB', bgColor: '#EFF6FF', accent: '#60A5FA' },
+    fun: { icon: 'sparkles', color: '#DB2777', bgColor: '#FDF2F8', accent: '#F472B6' },
+    default: { icon: 'star', color: '#475569', bgColor: '#F8FAFC', accent: '#94A3B8' }
 };
 
-// --- Reusable Components ---
+// --- Reusable Components (Redesigned) ---
 
 const Skeleton = ({ width, height, style }: { width: number | string, height: number, style?: any }) => {
     const opacity = useSharedValue(0.3);
@@ -62,90 +61,108 @@ const Skeleton = ({ width, height, style }: { width: number | string, height: nu
         );
     }, []);
     const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-    return <Animated.View style={[{ width, height, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 16 }, style, animatedStyle]} />;
+    return <Animated.View style={[{ width, height, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 24 }, style, animatedStyle]} />;
 };
 
 const CustomInput = ({ value, onChangeText, placeholder, keyboardType = 'default', label, autoFocus }: any) => (
-    <View className="mb-5">
-        <Text className="text-white/90 text-xs font-generalsans-bold uppercase tracking-widest mb-2 ml-1">{label}</Text>
-        <GlassView
-            glassEffectStyle="regular"
-            tintColor="#3A7AFE"
-            style={{ borderRadius: 16, height: 60, paddingHorizontal: 20, justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}
+    <View className="mb-8">
+        <Text className="text-xs font-inter-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.7)' }}>{label}</Text>
+        <View
+            style={{
+                borderRadius: 24,
+                height: 68,
+                paddingHorizontal: 24,
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderWidth: 1,
+                borderColor: value ? '#FFFFFF' : 'rgba(255,255,255,0.2)',
+            }}
         >
             <TextInput
                 value={value}
                 onChangeText={onChangeText}
                 placeholder={placeholder}
-                placeholderTextColor="rgba(255,255,255,0.5)"
+                placeholderTextColor="rgba(255,255,255,0.4)"
                 keyboardType={keyboardType}
                 autoFocus={autoFocus}
                 style={{
                     fontSize: 18,
-                    color: 'white',
-                    fontFamily: 'GeneralSans-Bold',
-                    textAlignVertical: 'center',
-                    includeFontPadding: false,
+                    color: '#FFFFFF',
+                    fontFamily: 'Inter-Semibold',
                     height: '100%',
                 }}
-                selectionColor="white"
+                selectionColor="#FFFFFF"
             />
-        </GlassView>
+        </View>
     </View>
 );
 
 const BigNumberInput = ({ value, onChangeText, suffix }: any) => (
-    <View className="items-center py-8">
-        <View className="flex-row items-end justify-center">
+    <View className="items-center py-3">
+        <View className="flex-row items-baseline justify-center rounded-[20px] px-4 py-4" style={{
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.2)',
+        }}>
             <TextInput
                 value={value}
                 onChangeText={onChangeText}
                 keyboardType="number-pad"
                 style={{
                     includeFontPadding: false,
-                    lineHeight: 80,
                     padding: 0,
                     margin: 0,
-                    textAlignVertical: 'center'
+                    color: '#FFFFFF',
+                    fontFamily: 'Inter-Bold',
+                    fontSize: 32,
                 }}
-                className="text-white font-generalsans-bold text-7xl text-center min-w-[80px] h-[80px]"
+                className="text-center min-w-[50px]"
                 placeholder="0"
                 placeholderTextColor="rgba(255,255,255,0.3)"
-                selectionColor="white"
+                selectionColor="#FFFFFF"
                 autoFocus
             />
-            <Text className="text-white/50 font-generalsans-bold text-2xl mb-4 ml-2">{suffix}</Text>
+            <Text className="font-inter-bold text-lg ml-2" style={{ color: 'rgba(255,255,255,0.6)' }}>{suffix}</Text>
         </View>
-        <View className="h-1 w-32 bg-white/20 rounded-full mt-4" />
     </View>
 );
 
 const SelectionCard = ({ selected, onPress, title, subtitle, icon }: any) => {
     return (
         <TouchableOpacity onPress={onPress} activeOpacity={0.8} className="mb-3">
-            <GlassView
-                glassEffectStyle="regular"
-                tintColor={selected ? "#FFFFFF" : "#3A7AFE"}
-                style={{ borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: selected ? 'white' : 'rgba(255,255,255,0.1)' }}
+            <Animated.View
+                layout={LinearTransition}
+                style={{
+                    backgroundColor: selected ? '#FFFFFF' : 'rgba(255,255,255,0.1)',
+                    borderRadius: 24,
+                    padding: 18,
+                    borderWidth: selected ? 0 : 1,
+                    borderColor: 'rgba(255,255,255,0.15)',
+                    shadowColor: selected ? '#000' : 'transparent',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: selected ? 0.2 : 0,
+                    shadowRadius: 8,
+                    elevation: selected ? 4 : 0,
+                }}
             >
-                <Animated.View
-                    layout={LinearTransition}
-                    className="flex-row items-center p-5"
-                >
-                    <View className={`w-12 h-12 rounded-full items-center justify-center ${selected ? 'bg-[#3A7AFE]' : 'bg-white/20'}`}>
-                        <Ionicons name={icon} size={24} color={selected ? 'white' : 'white'} />
+                <View className="flex-row items-center">
+                    <View
+                        style={{ backgroundColor: selected ? '#3A7AFE' : 'rgba(255,255,255,0.1)' }}
+                        className="w-14 h-14 rounded-2xl items-center justify-center"
+                    >
+                        <Ionicons name={icon} size={26} color={selected ? '#FFFFFF' : 'rgba(255,255,255,0.7)'} />
                     </View>
-                    <View className="ml-4 flex-1">
-                        <Text className={`text-[17px] font-generalsans-semibold ${selected ? 'text-[#3A7AFE]' : 'text-white'}`}>{title}</Text>
-                        {subtitle && <Text className={`text-xs font-generalsans-medium mt-0.5 ${selected ? 'text-[#3A7AFE]/70' : 'text-blue-100/70'}`}>{subtitle}</Text>}
+                    <View className="ml-4 flex-1 pr-3">
+                        <Text className="text-base font-inter-bold" style={{ color: selected ? '#3A7AFE' : '#FFFFFF' }}>{title}</Text>
+                        {subtitle && <Text className="text-sm font-inter-medium leading-5 mt-0.5" style={{ color: selected ? 'rgba(58,122,254,0.7)' : 'rgba(255,255,255,0.5)' }}>{subtitle}</Text>}
                     </View>
                     {selected && (
-                        <Animated.View entering={FadeIn.duration(200)}>
-                            <Ionicons name="checkmark-circle" size={26} color="#3A7AFE" />
+                        <Animated.View entering={ZoomIn.duration(300)}>
+                            <Ionicons name="checkmark-circle" size={28} color="#3A7AFE" />
                         </Animated.View>
                     )}
-                </Animated.View>
-            </GlassView>
+                </View>
+            </Animated.View>
         </TouchableOpacity>
     );
 };
@@ -154,33 +171,59 @@ const SimpleDaySelector = ({ selectedDays, toggleDay }: { selectedDays: number[]
     const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
     return (
-        <View className="mb-8 mt-6">
-            <Text className="text-white/70 text-xs font-generalsans-bold uppercase tracking-widest mb-4 ml-1">Select Days</Text>
-
-            <GlassView
-                glassEffectStyle="regular"
-                tintColor="#3A7AFE"
-                style={{ borderRadius: 24, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', overflow: "hidden" }}
-            >
-                <View className="flex-row justify-between items-center">
-                    {days.map((day, idx) => {
-                        const isSelected = (selectedDays || []).includes(idx);
-
-                        return (
-                            <TouchableOpacity
-                                key={idx}
-                                onPress={() => toggleDay(idx)}
-                                activeOpacity={0.7}
-                                className={`w-10 h-10 rounded-full items-center justify-center ${isSelected ? 'bg-white' : 'bg-white/10'}`}
+        <View className="mb-8 mt-4 p-6 rounded-[32px]" style={{
+            backgroundColor: 'rgba(255,255,255,0.05)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.1)',
+        }}>
+            <Text className="text-xs font-inter-bold text-white/50 uppercase tracking-widest mb-6 text-center">Select Active Days</Text>
+            <View className="flex-row justify-between items-center px-2">
+                {days.map((day, idx) => {
+                    const isSelected = (selectedDays || []).includes(idx);
+                    return (
+                        <TouchableOpacity
+                            key={idx}
+                            onPress={() => toggleDay(idx)}
+                            activeOpacity={0.7}
+                        >
+                            <Animated.View
+                                layout={LinearTransition}
+                                style={{
+                                    width: 42,
+                                    height: 42,
+                                    borderRadius: 21,
+                                    backgroundColor: isSelected ? '#FFFFFF' : 'rgba(255,255,255,0.1)',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderWidth: isSelected ? 0 : 1,
+                                    borderColor: isSelected ? 'transparent' : 'rgba(255,255,255,0.2)'
+                                }}
                             >
-                                <Text className={`font-generalsans-bold text-xs ${isSelected ? 'text-[#3A7AFE]' : 'text-white/60'}`}>
-                                    {day.slice(0, 1)}
+                                <Text style={{ color: isSelected ? '#3A7AFE' : 'rgba(255,255,255,0.6)' }} className="font-inter-bold text-sm">
+                                    {day}
                                 </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-            </GlassView>
+                            </Animated.View>
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+        </View>
+    );
+};
+
+const HeaderProgress = ({ current, total }: { current: number, total: number }) => {
+    return (
+        <View className="h-1.5 flex-row gap-1.5 flex-1 mx-4">
+            {[1, 2, 3, 4].map(i => (
+                <View
+                    key={i}
+                    className="flex-1 rounded-full h-full"
+                    style={{
+                        backgroundColor: i <= current ? '#FFFFFF' : 'rgba(255,255,255,0.2)',
+                        opacity: i <= current ? 1 : 0.5
+                    }}
+                />
+            ))}
         </View>
     );
 };
@@ -191,12 +234,15 @@ export default function ResolutionOnboarding() {
     const router = useRouter();
     const { width } = useWindowDimensions();
     const { isPremium } = useSubscription();
+    const { isSignedIn } = useAuth();
+    const { isGuest, addGuestResolution, isLoading: isGuestLoading, completeGuestOnboarding, hasCompletedOnboarding } = useGuest();
 
     const [step, setStep] = useState(1);
     const [submitting, setSubmitting] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
 
     // Data
+    const user = useQuery(api.users.currentUser);
     const categories = useQuery(api.categories.list);
     const [selectedCategory, setSelectedCategory] = useState<CategoryKey | null>(null);
     const templates = useQuery(
@@ -218,14 +264,13 @@ export default function ResolutionOnboarding() {
     const [countUnit, setCountUnit] = useState('times');
 
     const createResolution = useMutation(api.userResolutions.create);
+    const completeOnboarding = useMutation(api.users.completeOnboarding);
 
+    // Logic Functions (Identical to original)
     const handleNumberInput = (text: string, setter: (val: number) => void) => {
         const cleanText = text.replace(/[^0-9]/g, '');
-        if (cleanText === '') {
-            setter(0);
-        } else {
-            setter(parseInt(cleanText, 10));
-        }
+        if (cleanText === '') setter(0);
+        else setter(parseInt(cleanText, 10));
     };
 
     const handleCategorySelect = (key: CategoryKey) => {
@@ -261,23 +306,39 @@ export default function ResolutionOnboarding() {
         }
     };
 
-    const submitResolution = async () => {
+    const submitResolution = async (shouldNavigate = true) => {
         setSubmitting(true);
-
-        // Map presets to actual day arrays for DB logic
         let finalCustomDays: number[] | undefined = undefined;
 
-        if (frequencyType === 'daily') {
-            finalCustomDays = [0, 1, 2, 3, 4, 5, 6];
-        } else if (frequencyType === 'weekdays') {
-            finalCustomDays = [1, 2, 3, 4, 5];
-        } else if (frequencyType === 'weekends') {
-            finalCustomDays = [0, 6];
-        } else if (frequencyType === 'custom') {
-            finalCustomDays = customDays;
-        }
+        if (frequencyType === 'daily') finalCustomDays = [0, 1, 2, 3, 4, 5, 6];
+        else if (frequencyType === 'weekdays') finalCustomDays = [1, 2, 3, 4, 5];
+        else if (frequencyType === 'weekends') finalCustomDays = [0, 6];
+        else if (frequencyType === 'custom') finalCustomDays = customDays;
 
         try {
+            if (isGuest) {
+                await addGuestResolution({
+                    categoryKey: selectedCategory!,
+                    title: isCustom ? customTitle : selectedTemplate.title,
+                    description: isCustom ? '' : selectedTemplate.description,
+                    trackingType,
+                    targetTime: trackingType === 'time_based' ? targetTime : undefined,
+                    targetCount: trackingType === 'count_based' ? targetCount : undefined,
+                    countUnit: trackingType === 'count_based' ? countUnit : undefined,
+                    frequencyType,
+                    customDays: finalCustomDays,
+                    daysPerWeek: frequencyType === 'x_days_per_week' ? daysPerWeek : undefined,
+                });
+                await completeGuestOnboarding();
+                if (shouldNavigate) router.replace('/(tabs)');
+                return true;
+            }
+
+            if (!isSignedIn) {
+                Alert.alert("Authentication Required", "Please sign in or continue as guest to create a resolution.");
+                return false;
+            }
+
             await createResolution({
                 categoryKey: selectedCategory!,
                 title: isCustom ? customTitle : selectedTemplate.title,
@@ -287,71 +348,83 @@ export default function ResolutionOnboarding() {
                 targetCount: trackingType === 'count_based' ? targetCount : undefined,
                 countUnit: trackingType === 'count_based' ? countUnit : undefined,
                 frequencyType,
-                customDays: finalCustomDays, // Send explicit days
+                customDays: finalCustomDays,
                 daysPerWeek: frequencyType === 'x_days_per_week' ? daysPerWeek : undefined,
                 isActive: true,
                 templateId: !isCustom ? selectedTemplate?._id : undefined,
             });
 
-            router.replace('/(tabs)');
-        } catch (error) {
-            Alert.alert("Error", "Failed to create resolution");
-            console.error(error);
+            await completeOnboarding({ is_onboarded: true });
+
+            // Navigation handled by _layout.tsx reactive listener
+            return true;
+        } catch (error: any) {
+            console.error("Resolution Creation Error:", error);
+            Alert.alert("Error", `Failed to create resolution: ${error.message || "Unknown error"}`);
+            return false;
         } finally {
             setSubmitting(false);
         }
     };
 
     const handleFinish = async () => {
+        // Initialize resolution in background
+        const promise = submitResolution(false);
+
         if (!isPremium) {
             setShowPaywall(true);
         } else {
-            await submitResolution();
+            await promise;
+            router.replace('/(tabs)');
         }
     };
 
-    const renderStep1_Categories = () => (
-        <Animated.View entering={FadeInRight} exiting={FadeOutLeft}>
-            <Text className="text-[40px] font-generalsans-semibold text-white mb-2 leading-tight">Focus Area</Text>
-            <Text className="text-white/80 font-generalsans-medium text-lg mb-8">What do you want to improve?</Text>
+    // --- Render Steps (Visual Redesign) ---
 
-            <View className="flex-row flex-wrap justify-between gap-y-4">
+    const renderStep1_Categories = () => (
+        <Animated.View entering={FadeInRight.springify()} exiting={FadeOutLeft}>
+            <Text className="text-3xl font-inter-bold text-center leading-tight mb-3" style={{ color: '#FFFFFF' }}>Focus Area</Text>
+            <Text className="font-inter-medium text-base text-center leading-relaxed mb-8" style={{ color: 'rgba(255,255,255,0.7)' }}>What aspect of your life needs a reset?</Text>
+
+            <View className="gap-4">
                 {!categories ? (
-                    [1, 2, 3, 4].map((i) => <Skeleton key={i} width="48%" height={160} />)
+                    [1, 2, 3, 4, 5].map((i) => <Skeleton key={i} width="100%" height={88} />)
                 ) : (
                     categories.map((cat: any, index: number) => {
                         const config = CATEGORY_CONFIG[cat.key] || CATEGORY_CONFIG.default;
+
                         return (
                             <TouchableOpacity
                                 key={cat.key}
-                                style={{ width: '48%' }}
                                 onPress={() => handleCategorySelect(cat.key)}
                                 activeOpacity={0.8}
                             >
-                                <Animated.View entering={FadeInDown.delay(index * 100).springify()}>
-                                    <GlassView
-                                        glassEffectStyle="regular"
-                                        tintColor="#3A7AFE"
+                                <Animated.View
+                                    entering={FadeInDown.delay(index * 50).duration(400)}
+                                >
+                                    <View
                                         style={{
-                                            borderRadius: 32,
-                                            overflow: 'hidden',
+                                            backgroundColor: 'rgba(255,255,255,0.1)',
+                                            borderRadius: 28,
+                                            padding: 20,
                                             borderWidth: 1,
-                                            borderColor: 'rgba(255,255,255,0.1)'
+                                            borderColor: 'rgba(255,255,255,0.15)'
                                         }}
                                     >
-                                        <View className="p-6 aspect-[4/5] justify-between relative">
-                                            {/* Colored background blob for depth */}
-
-
-                                            <View className="w-12 h-12 rounded-full bg-white/10 items-center justify-center border border-white/10">
-                                                <Ionicons name={config.icon} size={22} color="white" />
+                                        <View className="flex-row items-center gap-5">
+                                            <View
+                                                style={{ backgroundColor: config.bgColor }}
+                                                className="w-16 h-16 rounded-[20px] items-center justify-center"
+                                            >
+                                                <Ionicons name={config.icon} size={32} color={config.color} />
                                             </View>
-                                            <View>
-                                                <Text className="text-white font-generalsans-semibold text-xl tracking-tight">{cat.name}</Text>
-                                                <Text className="text-white/60 text-xs font-generalsans-medium mt-1 leading-4">{cat.description}</Text>
+                                            <View className="flex-1">
+                                                <Text className="font-inter-bold text-base" style={{ color: '#FFFFFF' }}>{cat.name}</Text>
+                                                <Text className="text-sm font-inter-medium leading-5" style={{ color: 'rgba(255,255,255,0.6)' }}>{cat.description}</Text>
                                             </View>
+                                            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.3)" />
                                         </View>
-                                    </GlassView>
+                                    </View>
                                 </Animated.View>
                             </TouchableOpacity>
                         );
@@ -362,57 +435,60 @@ export default function ResolutionOnboarding() {
     );
 
     const renderStep2_Templates = () => (
-        <Animated.View entering={FadeInRight} exiting={FadeOutLeft}>
-            <Text className="text-3xl font-generalsans-semibold text-white mb-2">Select Goal</Text>
-            <Text className="text-white/80 font-generalsans-medium text-lg mb-6">Choose a template or create new.</Text>
+        <Animated.View entering={FadeInRight.springify()} exiting={FadeOutLeft}>
+            <Text className="text-3xl font-inter-bold text-center leading-tight mb-3" style={{ color: '#FFFFFF' }}>Choose Goal</Text>
+            <Text className="font-inter-medium text-base text-center leading-relaxed mb-8" style={{ color: 'rgba(255,255,255,0.7)' }}>Select a template or build your own.</Text>
 
             <TouchableOpacity onPress={handleCustomResolution} className="mb-8" activeOpacity={0.8}>
-                <GlassView
-                    glassEffectStyle="regular"
-                    tintColor="#FFFFFF"
-                    style={{ borderRadius: 24, overflow: 'hidden' }}
+                <View
+                    style={{
+                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        borderRadius: 24,
+                        padding: 20,
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.2)',
+                        borderStyle: 'dashed'
+                    }}
                 >
-                    <View className="p-5 flex-row items-center justify-between">
-                        <View className="flex-row items-center gap-4">
-                            <View className="w-12 h-12 rounded-full bg-[#3A7AFE]/10 items-center justify-center">
-                                <Ionicons name="add" size={28} color="#3A7AFE" />
-                            </View>
-                            <View>
-                                <Text className="text-[#3A7AFE] font-generalsans-semibold text-lg">Create Custom</Text>
-                                <Text className="text-slate-400 text-xs font-generalsans-medium">Start from scratch</Text>
-                            </View>
+                    <View className="flex-row items-center gap-4">
+                        <View className="w-14 h-14 rounded-2xl bg-white/10 items-center justify-center">
+                            <Ionicons name="add-circle" size={32} color="#FFFFFF" />
                         </View>
-                        <Ionicons name="chevron-forward" size={20} color="#3A7AFE" />
+                        <View className="flex-1">
+                            <Text className="font-inter-bold text-base" style={{ color: '#FFFFFF' }}>Create Custom</Text>
+                            <Text className="text-sm font-inter-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>Design your own habit</Text>
+                        </View>
                     </View>
-                </GlassView>
+                </View>
             </TouchableOpacity>
 
-            <Text className="text-white/50 text-xs font-generalsans-bold uppercase tracking-widest mb-4 ml-2">Recommended</Text>
+            <Text className="text-xs font-inter-bold uppercase tracking-widest mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>Popular Options</Text>
 
             {!templates ? (
-                [1, 2, 3].map(i => <Skeleton key={i} width="100%" height={80} style={{ marginBottom: 12 }} />)
+                [1, 2, 3].map(i => <Skeleton key={i} width="100%" height={88} style={{ marginBottom: 12 }} />)
             ) : (
-                templates.filter((t: any) => t.isPopular).map((template: any) => (
-                    <SelectionCard
-                        key={template._id}
-                        title={template.title}
-                        subtitle={template.description}
-                        icon="star-outline"
-                        onPress={() => handleTemplateSelect(template)}
-                        selected={false}
-                    />
+                templates.filter((t: any) => t.isPopular).map((template: any, index: number) => (
+                    <Animated.View key={template._id} entering={FadeInDown.delay(index * 80).springify()}>
+                        <SelectionCard
+                            title={template.title}
+                            subtitle={template.description}
+                            icon="star-outline"
+                            onPress={() => handleTemplateSelect(template)}
+                            selected={false}
+                        />
+                    </Animated.View>
                 ))
             )}
         </Animated.View>
     );
 
     const renderStep3_Frequency = () => (
-        <Animated.View entering={FadeInRight} exiting={FadeOutLeft}>
+        <Animated.View entering={FadeInRight.springify()} exiting={FadeOutLeft}>
             {isCustom && (
-                <View className="mb-4">
+                <View className="mb-6">
                     <CustomInput
-                        label="Goal Title"
-                        placeholder="e.g. Morning Run"
+                        label="Name your goal"
+                        placeholder="e.g. Morning Meditation"
                         value={customTitle}
                         onChangeText={setCustomTitle}
                         autoFocus={true}
@@ -420,13 +496,21 @@ export default function ResolutionOnboarding() {
                 </View>
             )}
 
-            <Text className="text-3xl font-generalsans-semibold text-white mb-2">Commitment</Text>
-            <Text className="text-white/80 font-generalsans-medium text-lg mb-6">How often will you do this?</Text>
+            <Text className="text-3xl font-inter-bold text-center leading-tight mb-3" style={{ color: '#FFFFFF' }}>Routine</Text>
+            <Text className="font-inter-medium text-base text-center leading-relaxed mb-8" style={{ color: 'rgba(255,255,255,0.7)' }}>When will you perform this action?</Text>
 
-            <SelectionCard title="Every Day" subtitle="Build a daily habit" icon="infinite" selected={frequencyType === 'daily'} onPress={() => setFrequencyType('daily')} />
-            <SelectionCard title="Weekdays" subtitle="Monday to Friday" icon="briefcase-outline" selected={frequencyType === 'weekdays'} onPress={() => setFrequencyType('weekdays')} />
-            <SelectionCard title="Weekends" subtitle="Saturday & Sunday" icon="cafe-outline" selected={frequencyType === 'weekends'} onPress={() => setFrequencyType('weekends')} />
-            <SelectionCard title="Custom Days" subtitle="Specific schedule" icon="calendar-outline" selected={frequencyType === 'custom'} onPress={() => setFrequencyType('custom')} />
+            <Animated.View entering={FadeInDown.delay(100).springify()}>
+                <SelectionCard title="Every Day" subtitle="Perfect for building habits" icon="infinite" selected={frequencyType === 'daily'} onPress={() => setFrequencyType('daily')} />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(150).springify()}>
+                <SelectionCard title="Weekdays" subtitle="Monday through Friday" icon="briefcase-outline" selected={frequencyType === 'weekdays'} onPress={() => setFrequencyType('weekdays')} />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(200).springify()}>
+                <SelectionCard title="Weekends" subtitle="Saturday & Sunday only" icon="cafe-outline" selected={frequencyType === 'weekends'} onPress={() => setFrequencyType('weekends')} />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(250).springify()}>
+                <SelectionCard title="Specific Days" subtitle="Custom weekly schedule" icon="calendar-outline" selected={frequencyType === 'custom'} onPress={() => setFrequencyType('custom')} />
+            </Animated.View>
 
             {frequencyType === 'custom' && (
                 <Animated.View entering={FadeInDown.springify()}>
@@ -434,52 +518,78 @@ export default function ResolutionOnboarding() {
                 </Animated.View>
             )}
 
-            <View className="mt-8">
-                <TouchableOpacity onPress={() => setStep(4)}>
-                    <GlassView
-                        glassEffectStyle="regular"
-                        tintColor="#FFFFFF"
-                        style={{ borderRadius: 16, height: 64, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+            <View className="mt-10">
+                <TouchableOpacity onPress={() => setStep(4)} activeOpacity={0.8}>
+                    <View
+                        style={{
+                            borderRadius: 100,
+                            height: 60,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#FFFFFF',
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 8 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 16,
+                            elevation: 8,
+                        }}
                     >
-                        <Text className="text-[#3A7AFE] font-generalsans-semibold text-xl">Continue</Text>
-                    </GlassView>
+                        <Text className="text-[#3A7AFE] font-inter-bold text-base">Continue</Text>
+                    </View>
                 </TouchableOpacity>
             </View>
         </Animated.View>
     );
 
     const renderStep4_Tracking = () => (
-        <Animated.View entering={FadeInRight} exiting={FadeOutLeft}>
-            <Text className="text-3xl font-generalsans-semibold text-white mb-2">Tracking</Text>
-            <Text className="text-white/80 font-generalsans-medium text-lg mb-6">How do you measure success?</Text>
+        <Animated.View entering={FadeInRight.springify()} exiting={FadeOutLeft}>
+            <Text className="text-3xl font-inter-bold text-center leading-tight mb-3" style={{ color: '#FFFFFF' }}>Measurement</Text>
+            <Text className="font-inter-medium text-base text-center leading-relaxed mb-8" style={{ color: 'rgba(255,255,255,0.7)' }}>Define success for your daily goal.</Text>
 
-            <SelectionCard title="Simple Check" subtitle="Yes or No" icon="checkmark-circle-outline" selected={trackingType === 'yes_no'} onPress={() => setTrackingType('yes_no')} />
-            <SelectionCard title="Time Duration" subtitle="Track minutes" icon="timer-outline" selected={trackingType === 'time_based'} onPress={() => setTrackingType('time_based')} />
+            <Animated.View entering={FadeInDown.delay(100).springify()}>
+                <SelectionCard title="Completion Only" subtitle="Simple checkbox" icon="checkmark-circle-outline" selected={trackingType === 'yes_no'} onPress={() => setTrackingType('yes_no')} />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(150).springify()}>
+                <SelectionCard title="Time Duration" subtitle="Track minutes spent" icon="timer-outline" selected={trackingType === 'time_based'} onPress={() => setTrackingType('time_based')} />
+            </Animated.View>
 
             {trackingType === 'time_based' && (
-                <Animated.View entering={FadeInDown} className="mb-4">
-                    <BigNumberInput value={String(targetTime)} onChangeText={(t: string) => handleNumberInput(t, setTargetTime)} suffix="Mins" />
+                <Animated.View entering={FadeInDown} className="mb-6">
+                    <BigNumberInput value={String(targetTime)} onChangeText={(t: string) => handleNumberInput(t, setTargetTime)} suffix="Min" />
                 </Animated.View>
             )}
 
-            <SelectionCard title="Specific Count" subtitle="Reps, pages, glasses, etc." icon="stats-chart-outline" selected={trackingType === 'count_based'} onPress={() => setTrackingType('count_based')} />
+            <Animated.View entering={FadeInDown.delay(200).springify()}>
+                <SelectionCard title="Numeric Count" subtitle="Reps, pages, units" icon="stats-chart-outline" selected={trackingType === 'count_based'} onPress={() => setTrackingType('count_based')} />
+            </Animated.View>
 
             {trackingType === 'count_based' && (
-                <Animated.View entering={FadeInDown} className="mb-4">
+                <Animated.View entering={FadeInDown} className="mb-6">
                     <BigNumberInput value={String(targetCount)} onChangeText={(t: string) => handleNumberInput(t, setTargetCount)} suffix={countUnit} />
-                    <CustomInput label="Unit Name" placeholder="e.g. Pages" value={countUnit} onChangeText={setCountUnit} />
+                    <View className="mt-2">
+                        <CustomInput label="Unit Name" placeholder="e.g. Pages" value={countUnit} onChangeText={setCountUnit} />
+                    </View>
                 </Animated.View>
             )}
 
-            <View className="mt-8">
-                <TouchableOpacity onPress={() => setStep(5)}>
-                    <GlassView
-                        glassEffectStyle="regular"
-                        tintColor="#FFFFFF"
-                        style={{ borderRadius: 16, height: 64, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+            <View className="mt-10">
+                <TouchableOpacity onPress={() => setStep(5)} activeOpacity={0.8}>
+                    <View
+                        style={{
+                            borderRadius: 100,
+                            height: 60,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#FFFFFF',
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 8 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 16,
+                            elevation: 8,
+                        }}
                     >
-                        <Text className="text-[#3A7AFE] font-generalsans-semibold text-xl">Review Quest</Text>
-                    </GlassView>
+                        <Text className="text-[#3A7AFE] font-inter-bold text-base">Continue</Text>
+                    </View>
                 </TouchableOpacity>
             </View>
         </Animated.View>
@@ -487,127 +597,127 @@ export default function ResolutionOnboarding() {
 
     const renderStep5_Summary = () => {
         const catConfig = selectedCategory ? CATEGORY_CONFIG[selectedCategory] : CATEGORY_CONFIG.default;
-        const textColor = catConfig.color; // Use the darker category color for text
 
         return (
-            <Animated.View entering={FadeInRight} exiting={FadeOutLeft} className="flex-1 justify-center items-center pb-12">
-                <View className="items-center mb-8">
-                    <Text className="text-[32px] font-generalsans-bold tracking-tighter text-white text-center leading-tight shadow-sm shadow-blue-500/50">
-                        Levora
-                    </Text>
-                    <View className="mt-2 bg-white/10 px-3 py-1 rounded-full border border-white/10">
-                        <Text className="text-[#FFD700] text-[10px] font-generalsans-bold tracking-[2px] uppercase">
-                            Your 2026 Reset
-                        </Text>
-                    </View>
+            <Animated.View entering={FadeInRight.delay(100).springify()} exiting={FadeOutLeft} className="flex-1 justify-center pb-8">
 
-                    {/* Social Proof */}
-                    <View className="flex-row items-center mt-5 bg-black/10 px-3 py-1.5 rounded-full border border-white/5 mx-auto">
-                        <View className="flex-row -space-x-1.5 mr-2">
-                            {[12, 5, 8].map((i) => (
-                                <Image
-                                    key={i}
-                                    source={{ uri: `https://i.pravatar.cc/150?img=${i}` }}
-                                    style={{ width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: '#3A7AFE' }}
-                                />
-                            ))}
-                        </View>
-                        <Text className="text-blue-100/80 text-[10px] font-generalsans-medium">
-                            <Text className="text-white font-generalsans-bold">1k+</Text> resolutions started
-                        </Text>
-                    </View>
+                {/* Header Text */}
+                <View className="items-center mb-10">
+                    <Text className="font-inter-medium text-xs uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.6)' }}>Review Quest</Text>
+                    <Text className="font-inter-bold text-4xl text-center leading-tight mb-2" style={{ color: '#FFFFFF' }}>Ready to Commit?</Text>
+                    <Text className="font-inter-medium text-base text-center" style={{ color: 'rgba(255,255,255,0.7)' }}>Your journey starts now</Text>
                 </View>
 
-                {/* SQUIRCLE STYLE CARD */}
-                <View style={{ width: '100%', borderRadius: 40, overflow: 'hidden', shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20 }}>
-                    {/* Glass container using the category background color as tint */}
-                    <GlassView
-                        glassEffectStyle="regular"
-                        tintColor={catConfig.bgColor}
-                        style={{ width: '100%' }}
-                    >
-                        <View className="p-8 justify-between min-h-[420px]">
-
-                            {/* Top Section */}
-                            <View>
-                                <View className="flex-row justify-between items-start mb-6">
-                                    <View className="bg-white/60 px-4 py-2 rounded-full border border-white/20 backdrop-blur-md">
-                                        <Text style={{ color: textColor }} className="text-xs font-generalsans-bold uppercase tracking-wider opacity-80">
-                                            {selectedCategory}
-                                        </Text>
-                                    </View>
-                                    <View className="w-14 h-14 rounded-full bg-white/60 items-center justify-center border border-white/20">
-                                        <Ionicons name={catConfig.icon} size={24} color={textColor} />
-                                    </View>
-                                </View>
-
-                                <Text style={{ color: '#1E293B', textShadowColor: 'rgba(255,255,255,0.5)', textShadowRadius: 1 }} className="font-generalsans-bold text-[42px] leading-[46px] mb-8">
-                                    {isCustom ? customTitle || 'New Resolution' : selectedTemplate?.title}
+                {/* Main Card */}
+                <View
+                    style={{
+                        borderRadius: 32,
+                        backgroundColor: '#FFFFFF',
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 12 },
+                        shadowOpacity: 0.08,
+                        shadowRadius: 24,
+                        elevation: 10,
+                        overflow: 'hidden'
+                    }}
+                >
+                    {/* Card Header (Colored) */}
+                    <View style={{ backgroundColor: catConfig.bgColor }} className="p-8 pb-8">
+                        <View className="flex-row justify-between items-start mb-8">
+                            <View
+                                style={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
+                                className="px-4 py-2 rounded-full border border-white/40"
+                            >
+                                <Text style={{ color: catConfig.color }} className="text-xs font-inter-bold uppercase tracking-wider">
+                                    {selectedCategory}
                                 </Text>
                             </View>
-
-                            {/* Stats Section - Removed Circles, using clean layout */}
-                            <View className="gap-4">
-                                <View className="flex-row items-center gap-4 border-b border-black/5 pb-4">
-                                    <View className="w-10 h-10 rounded-full bg-white/50 items-center justify-center">
-                                        <Ionicons name="calendar-outline" size={20} color={textColor} />
-                                    </View>
-                                    <View>
-                                        <Text className="text-slate-500 text-[10px] font-generalsans-bold uppercase">Frequency</Text>
-                                        <Text className="text-slate-800 font-generalsans-bold text-lg">
-                                            {frequencyType === 'daily' ? 'Daily' :
-                                                frequencyType === 'weekdays' ? 'Weekdays' :
-                                                    frequencyType === 'weekends' ? 'Weekends' : 'Custom Days'}
-                                        </Text>
-                                    </View>
-                                </View>
-
-                                <View className="flex-row items-center gap-4 pb-2">
-                                    <View className="w-10 h-10 rounded-full bg-white/50 items-center justify-center">
-                                        <Ionicons name="radio-button-on" size={20} color={textColor} />
-                                    </View>
-                                    <View>
-                                        <Text className="text-slate-500 text-[10px] font-generalsans-bold uppercase">Goal Target</Text>
-                                        <Text className="text-slate-800 font-generalsans-bold text-lg">
-                                            {trackingType === 'yes_no' ? 'Check In' : trackingType === 'time_based' ? `${targetTime} Minutes` : `${targetCount} ${countUnit}`}
-                                        </Text>
-                                    </View>
-                                </View>
+                            <View style={{ backgroundColor: 'rgba(255,255,255,0.8)' }} className="w-12 h-12 rounded-full items-center justify-center">
+                                <Ionicons name={catConfig.icon} size={24} color={catConfig.color} />
                             </View>
-
-                            {/* Footer / XP */}
-                            <View className="mt-6 pt-6 border-t border-black/5 flex-row items-center justify-between">
-                                <View className="flex-row items-center gap-2">
-                                    <View className="w-2 h-2 rounded-full bg-emerald-500" />
-                                    <Text className="text-slate-600 font-generalsans-bold text-xs uppercase">Resolution Ready</Text>
-                                </View>
-                                <Text style={{ color: textColor }} className="font-generalsans-bold text-sm bg-white/50 px-3 py-1 rounded-lg overflow-hidden">+50 XP</Text>
-                            </View>
-
                         </View>
-                    </GlassView>
+
+                        <Text style={{ color: '#1E293B' }} className="font-inter-bold text-[32px] leading-[38px]">
+                            {isCustom ? customTitle || 'New Goal' : selectedTemplate?.title}
+                        </Text>
+                    </View>
+
+                    {/* Card Body (White) */}
+                    <View className="p-8 pt-6">
+                        {/* Stats Grid */}
+                        <View className="gap-3 mb-6">
+                            <View className="flex-1 p-4 rounded-2xl" style={{ backgroundColor: '#FAFAFA' }}>
+                                <View className="flex-row items-center gap-2 mb-2">
+                                    <Ionicons name="calendar" size={16} color="#F97316" />
+                                    <Text className="text-[10px] font-inter-bold uppercase tracking-wider" style={{ color: '#999' }}>Frequency</Text>
+                                </View>
+                                <Text className="font-inter-bold text-base" style={{ color: '#1E293B' }}>
+                                    {frequencyType === 'daily' ? 'Daily' :
+                                        frequencyType === 'weekdays' ? 'Weekdays' :
+                                            frequencyType === 'weekends' ? 'Weekends' : 'Custom'}
+                                </Text>
+                            </View>
+                            <View className="flex-1 p-4 rounded-2xl" style={{ backgroundColor: '#FAFAFA' }}>
+                                <View className="flex-row items-center gap-2 mb-2">
+                                    <Ionicons name="flag" size={16} color="#F97316" />
+                                    <Text className="text-[10px] font-inter-bold uppercase tracking-wider" style={{ color: '#999' }}>Target</Text>
+                                </View>
+                                <Text className="font-inter-bold text-base" style={{ color: '#1E293B' }}>
+                                    {trackingType === 'yes_no' ? 'Complete' : trackingType === 'time_based' ? `${targetTime} Mins` : `${targetCount} ${countUnit}`}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Character Unlock Message */}
+                        <View className="flex-row items-center gap-3 p-4 rounded-2xl" style={{ backgroundColor: '#FFF4ED' }}>
+                            <View className="w-12 h-12 rounded-full items-center justify-center" style={{ backgroundColor: '#FFEDD5' }}>
+                                <Text className="text-2xl">🎯</Text>
+                            </View>
+                            <View className="flex-1">
+                                <Text className="font-inter-bold text-sm" style={{ color: '#1E293B' }}>Complete to unlock characters</Text>
+                                <Text className="font-inter-medium text-xs mt-0.5" style={{ color: '#64748B' }}>Build streaks and evolve your character</Text>
+                            </View>
+                        </View>
+                    </View>
                 </View>
 
-                {/* Confirm Button */}
+                {/* Primary Action */}
                 <View className="w-full mt-10">
                     <TouchableOpacity
                         onPress={handleFinish}
                         disabled={submitting}
+                        activeOpacity={0.8}
                     >
-                        <GlassView
-                            glassEffectStyle="regular"
-                            tintColor="#FFFFFF"
-                            style={{ borderRadius: 24, height: 72, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' }}
+                        <Animated.View
+                            entering={FadeInDown.delay(300).springify()}
+                            style={{
+                                borderRadius: 100,
+                                height: 72,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: '#FFFFFF',
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 12 },
+                                shadowOpacity: 0.15,
+                                shadowRadius: 20,
+                                elevation: 8,
+                                flexDirection: 'row',
+                                gap: 10
+                            }}
                         >
                             {submitting ? (
                                 <ActivityIndicator color="#3A7AFE" />
                             ) : (
-                                <Text className="text-[#3A7AFE] font-generalsans-semibold text-xl">Initialize Resolution</Text>
+                                <>
+                                    <Text className="text-[#3A7AFE] font-inter-bold text-xl">Initialize Resolution</Text>
+                                    <Ionicons name="arrow-forward" size={24} color="#3A7AFE" />
+                                </>
                             )}
-                        </GlassView>
+                        </Animated.View>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setStep(4)} className="mt-6 items-center">
-                        <Text className="text-white/50 font-generalsans-bold text-xs uppercase tracking-widest">Reconfigure</Text>
+
+                    <TouchableOpacity onPress={() => setStep(4)} className="mt-6 items-center py-2">
+                        <Text className="font-inter-bold text-white/50 text-xs uppercase tracking-widest">Edit Details</Text>
                     </TouchableOpacity>
                 </View>
             </Animated.View>
@@ -615,50 +725,50 @@ export default function ResolutionOnboarding() {
     }
 
     return (
-        <View className="flex-1 bg-[#3A7AFE]">
-            <LinearGradient
-                colors={['#3A7AFE', '#2563EB']}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            />
-
+        <View style={{ flex: 1, backgroundColor: '#3A7AFE' }}>
             <SafeAreaView className="flex-1">
-                {/* Header */}
-                <View className="px-6 py-2 flex-row items-center justify-between h-16 z-10">
-                    {step > 1 && step < 5 ? (
-                        <TouchableOpacity onPress={() => setStep(step - 1)} className="w-10 h-10 rounded-full bg-white/10 items-center justify-center border border-white/20">
-                            <Ionicons name="arrow-back" size={20} color="white" />
-                        </TouchableOpacity>
-                    ) : <View className="w-10" />}
+                {/* Global Header */}
+                <View className="px-6 py-2 flex-row items-center justify-between h-14 z-10">
+                    <View style={{ width: 40 }}>
+                        {step > 1 && step < 5 && (
+                            <TouchableOpacity
+                                onPress={() => setStep(step - 1)}
+                                className="w-10 h-10 rounded-full bg-white/10 items-center justify-center border border-white/10"
+                            >
+                                <Ionicons name="arrow-back" size={20} color="white" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
 
+                    {/* Progress Bar */}
                     {step < 5 && (
-                        <View className="flex-row gap-2">
-                            {[1, 2, 3, 4, 5].map(i => (
-                                <Animated.View
-                                    key={i}
-                                    layout={LinearTransition}
-                                    className={`h-1.5 rounded-full ${i === step ? 'w-6 bg-white' : i < step ? 'w-1.5 bg-white/40' : 'w-1.5 bg-white/10'}`}
-                                />
-                            ))}
-                        </View>
+                        <HeaderProgress current={step} total={4} />
                     )}
-                    <View className="w-10" />
+
+                    <View style={{ width: 40 }} />
                 </View>
 
-                {/* Content */}
+                {/* Scroll Content */}
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
                     <ScrollView
                         className="flex-1 px-6"
                         showsVerticalScrollIndicator={false}
-                        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, paddingTop: 10 }}
+                        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, paddingTop: 20 }}
                     >
-                        <View className="w-full max-w-[500px] self-center">
-                            {step === 1 && renderStep1_Categories()}
-                            {step === 2 && renderStep2_Templates()}
-                            {step === 3 && renderStep3_Frequency()}
-                            {step === 4 && renderStep4_Tracking()}
-                            {step === 5 && renderStep5_Summary()}
+                        <View className="w-full max-w-[420px] self-center">
+                            {isGuestLoading ? (
+                                <View className="flex-1 items-center justify-center pt-20">
+                                    <ActivityIndicator size="large" color="white" />
+                                </View>
+                            ) : (
+                                <>
+                                    {step === 1 && renderStep1_Categories()}
+                                    {step === 2 && renderStep2_Templates()}
+                                    {step === 3 && renderStep3_Frequency()}
+                                    {step === 4 && renderStep4_Tracking()}
+                                    {step === 5 && renderStep5_Summary()}
+                                </>
+                            )}
                         </View>
                     </ScrollView>
                 </KeyboardAvoidingView>
@@ -668,10 +778,11 @@ export default function ResolutionOnboarding() {
                 visible={showPaywall}
                 onClose={() => {
                     setShowPaywall(false);
-                    submitResolution();
+                    if (user?.is_onboarded || (isGuest && hasCompletedOnboarding)) {
+                        router.replace('/(tabs)');
+                    }
                 }}
-                onCancel={() => setShowPaywall(false)}
-                isHardPaywall={true}
+                isHardPaywall={false}
             />
         </View>
     );

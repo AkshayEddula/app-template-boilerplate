@@ -1,3 +1,4 @@
+import { useGuest } from "@/context/GuestContext";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Ionicons } from "@expo/vector-icons";
@@ -278,6 +279,7 @@ export const TrackingModal = ({
   const logProgress = useMutation(api.resolutions.logProgress);
   const editResolution = useMutation(api.resolutions.edit);
   const deleteResolution = useMutation(api.resolutions.deleteResolution);
+  const { isGuest, logGuestProgress } = useGuest();
 
   const [seconds, setSeconds] = useState(0);
   const [countValue, setCountValue] = useState(0);
@@ -378,6 +380,12 @@ export const TrackingModal = ({
       const finalValue =
         resolution.trackingType === "time_based" ? seconds : countValue;
 
+      if (isGuest) {
+        await logGuestProgress(resolution._id, new Date().toISOString().split("T")[0], finalValue);
+        onClose();
+        return;
+      }
+
       const result = await logProgress({
         userResolutionId: resolution._id as Id<"userResolutions">,
         date: new Date().toISOString().split("T")[0],
@@ -442,6 +450,11 @@ export const TrackingModal = ({
         if (editTrackingType === "time_based") updates.targetTime = numVal;
       }
 
+      if (isGuest) {
+        Alert.alert("Guest Mode", "Editing is not supported in guest mode.");
+        return;
+      }
+
       await editResolution(updates);
       Alert.alert("Success", "Goal updated successfully");
       onClose();
@@ -464,6 +477,10 @@ export const TrackingModal = ({
           style: "destructive",
           onPress: async () => {
             try {
+              if (isGuest) {
+                Alert.alert("Guest Mode", "Deleting is not supported in guest mode.");
+                return;
+              }
               await deleteResolution({
                 id: resolution._id as Id<"userResolutions">,
               });
