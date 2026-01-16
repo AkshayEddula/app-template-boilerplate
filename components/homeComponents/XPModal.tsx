@@ -1,218 +1,286 @@
-import { PaywallModal } from "@/components/Paywall";
-import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from "@/convex/_generated/api";
-import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
-import { GlassView } from "expo-glass-effect";
-import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import Animated, { Easing, FadeInDown } from "react-native-reanimated";
+import { BlurView } from "expo-blur";
+import { useMemo } from "react";
+import { Dimensions, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
-// Visual Configuration
-const CATEGORY_CONFIG: Record<string, { color: string, icon: string }> = {
-    health: { color: '#34D399', icon: 'fitness' },
-    mind: { color: '#A78BFA', icon: 'book' },
-    career: { color: '#60A5FA', icon: 'briefcase' },
-    life: { color: '#FBBF24', icon: 'leaf' },
-    fun: { color: '#F472B6', icon: 'game-controller' },
+// Theme Colors
+const BG_COLOR = "#FAF9F6";
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
+const SUCCESS_GREEN = "#22C55E";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+// Category Config
+const CATEGORY_STYLES: Record<string, { color: string; icon: string; bg: string }> = {
+    health: { color: "#10B981", icon: "💧", bg: "#ECFDF5" },
+    mind: { color: "#8B5CF6", icon: "🧘", bg: "#F5F3FF" },
+    career: { color: "#3B82F6", icon: "💼", bg: "#EFF6FF" },
+    life: { color: "#F59E0B", icon: "🌟", bg: "#FFFBEB" },
+    fun: { color: "#EC4899", icon: "🎮", bg: "#FDF2F8" },
+    default: { color: ACCENT_ORANGE, icon: "✨", bg: "#FFF7ED" },
 };
 
-export const XPModal = ({ visible, onClose }: { visible: boolean, onClose: () => void }) => {
+export const XPModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
     const stats = useQuery(api.stats.getMyStats) || [];
 
     const totals = useMemo(() => {
-        return stats.reduce((acc, curr) => ({
-            grandTotal: acc.grandTotal + (curr.totalXp || 0),
-            todayTotal: acc.todayTotal + (curr.todayXp || 0)
-        }), { grandTotal: 0, todayTotal: 0 });
+        return stats.reduce(
+            (acc, curr) => ({
+                grandTotal: acc.grandTotal + (curr.totalXp || 0),
+                todayTotal: acc.todayTotal + (curr.todayXp || 0),
+            }),
+            { grandTotal: 0, todayTotal: 0 }
+        );
     }, [stats]);
 
-    const { isPremium } = useSubscription();
-    const { isSignedIn } = useAuth();
-    const router = useRouter();
-    const [paywallVisible, setPaywallVisible] = useState(false);
-
-    const isLocked = !isPremium || !isSignedIn;
-
-    const handleUnlock = () => {
-        if (!isPremium) {
-            setPaywallVisible(true);
-        } else if (!isSignedIn) {
-            onClose();
-            router.push('/(auth)/sign-up');
-        }
-    };
-
-    const getLockedState = () => {
-        if (!isPremium) {
-            return {
-                message: "Upgrade to Premium to view detailed value statistics.",
-                buttonText: "Unlock Access"
-            };
-        }
-        if (!isSignedIn) {
-            return {
-                message: "Sign in to save and view your XP progress.",
-                buttonText: "Sign In / Register"
-            };
-        }
-        return { message: "Locked", buttonText: "Unlock" };
-    };
-
-    const { message, buttonText } = getLockedState();
-
     return (
-        <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={onClose}>
+        <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+            {/* Backdrop */}
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose}>
+                <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+                <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" }} />
+            </TouchableOpacity>
 
+            {/* Sheet */}
+            <Animated.View entering={FadeInDown.duration(300)} style={styles.sheet}>
+                {/* Handle */}
+                <View style={styles.handleContainer}>
+                    <View style={styles.handle} />
+                </View>
 
-            {/* 2. Main Modal Sheet */}
-            <Animated.View
-                entering={FadeInDown.duration(500).easing(Easing.out(Easing.cubic))}
-                style={{
-                    position: 'absolute',
-                    bottom: 10,
-                    left: 5,
-                    right: 5,
-                    backgroundColor: Platform.OS === 'android' ? '#3A7AFE' : 'transparent',
-                    borderRadius: 44,
-                    // Shadows for depth
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 20 },
-                    shadowOpacity: 0.6,
-                    shadowRadius: 40,
-                    elevation: 25,
-                }}
-            >
-                {/* --- GLASS BACKGROUND LAYER --- */}
-                {Platform.OS === 'ios' && (
-                    <GlassView
-                        style={{
-                            ...StyleSheet.absoluteFillObject,
-                            borderRadius: 44,
-                            overflow: 'hidden',
-                        }}
-                        glassEffectStyle="regular"
-                        tintColor="#3A7AFE"
-                    />
-                )}
-
-
-
-                {/* --- CONTENT --- */}
-                <View className="p-8 pb-10">
-
-                    {/* --- 1. HEADER: THE BIG NUMBER --- */}
-                    <View className="items-center mt-2 mb-12">
-                        <View className="flex-row items-center gap-2 mb-2 opacity-60">
-                            <Ionicons name="trophy" size={12} color="white" />
-                            <Text className="text-white font-generalsans-bold text-[10px] uppercase tracking-[-0.2px]">
-                                Lifetime Experience
-                            </Text>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <View style={styles.trophyCircle}>
+                            <Text style={{ fontSize: 40 }}>🏆</Text>
                         </View>
+                        <Text style={styles.totalXp}>{totals.grandTotal.toLocaleString()}</Text>
+                        <Text style={styles.totalLabel}>Total XP</Text>
 
-                        <Text className="text-white font-bricolagegrotesk-bold text-[72px] leading-[90px] tracking-[-6px] text-center" style={{ paddingHorizontal: 10 }}>
-                            {totals.grandTotal.toLocaleString()}
-                        </Text>
-
-                        {/* Today Stats Pill */}
                         {totals.todayTotal > 0 && (
-                            <View className="mt-4 bg-emerald-500/20 px-4 py-1.5 rounded-full border border-emerald-500/30 flex-row items-center gap-2">
-                                <Ionicons name="arrow-up" size={12} color="#34D399" />
-                                <Text className="text-[#34D399] font-generalsans-bold text-xs uppercase tracking-tight">
-                                    {totals.todayTotal} XP earned today
-                                </Text>
+                            <View style={styles.todayBadge}>
+                                <Ionicons name="arrow-up" size={14} color={SUCCESS_GREEN} />
+                                <Text style={styles.todayText}>+{totals.todayTotal} XP today</Text>
                             </View>
                         )}
                     </View>
 
-                    {/* --- 2. LIST: STATS & PROGRESS --- */}
-                    <View className="gap-7">
-                        {stats.map((item, index) => {
-                            const config = CATEGORY_CONFIG[item.categoryKey] || { color: '#94A3B8', icon: 'ellipse' };
+                    {/* Categories */}
+                    <View style={styles.categoriesContainer}>
+                        <Text style={styles.sectionTitle}>By Category</Text>
 
-                            // Calculate Level (Every 1000 XP is a level)
-                            const level = Math.floor(item.totalXp / 1000) + 1;
-                            const progressToNextLevel = (item.totalXp % 1000) / 1000; // 0.0 to 1.0
+                        {stats.map((item, index) => {
+                            const config = CATEGORY_STYLES[item.categoryKey] || CATEGORY_STYLES.default;
+                            const level = Math.floor(item.totalXp / 500) + 1;
+                            const progressToNext = (item.totalXp % 500) / 500;
 
                             return (
                                 <Animated.View
                                     key={item.categoryKey}
-                                    entering={FadeInDown.delay(index * 50 + 100).duration(500)}
+                                    entering={FadeIn.delay(index * 80)}
+                                    style={styles.categoryCard}
                                 >
-                                    {/* Top Row: Info */}
-                                    <View className="flex-row items-center justify-between mb-2">
-                                        <View className="flex-row items-center gap-3">
-                                            {/* Icon */}
+                                    {/* Left: Icon */}
+                                    <View style={[styles.categoryIcon, { backgroundColor: config.bg }]}>
+                                        <Text style={{ fontSize: 24 }}>{config.icon}</Text>
+                                    </View>
+
+                                    {/* Middle: Info */}
+                                    <View style={styles.categoryInfo}>
+                                        <Text style={styles.categoryName}>
+                                            {item.categoryKey.charAt(0).toUpperCase() + item.categoryKey.slice(1)}
+                                        </Text>
+                                        <Text style={styles.levelText}>Level {level}</Text>
+
+                                        {/* Progress Bar */}
+                                        <View style={styles.progressBg}>
                                             <View
-                                                style={{ backgroundColor: config.color }}
-                                                className="w-8 h-8 rounded-full items-center justify-center shadow-lg shadow-black/20"
-                                            >
-                                                <Ionicons name={config.icon as any} size={14} color="white" />
-                                            </View>
-
-                                            {/* Text */}
-                                            <View>
-                                                <Text className="text-white font-generalsans-bold text-lg capitalize tracking-tighter leading-5">
-                                                    {item.categoryKey}
-                                                </Text>
-                                                <Text className="text-white/50 text-[10px] font-generalsans-medium uppercase tracking-tighter">
-                                                    Level {level}
-                                                </Text>
-                                            </View>
-                                        </View>
-
-                                        {/* Right: XP */}
-                                        <View className="items-end">
-                                            <Text className="text-white font-bricolagegrotesk-bold text-lg tracking-[-1px]">
-                                                {item.totalXp.toLocaleString()}
-                                            </Text>
-                                            {item.todayXp > 0 && (
-                                                <Text className="text-emerald-400 text-[10px] font-bricolagegrotesk-bold">
-                                                    +{item.todayXp}
-                                                </Text>
-                                            )}
+                                                style={[
+                                                    styles.progressFill,
+                                                    { width: `${progressToNext * 100}%`, backgroundColor: config.color },
+                                                ]}
+                                            />
                                         </View>
                                     </View>
 
-                                    {/* Bottom Row: Progress Bar */}
-                                    <View className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                                        <View
-                                            style={{
-                                                width: `${progressToNextLevel * 100}%`,
-                                                backgroundColor: config.color,
-                                                shadowColor: config.color,
-                                                shadowOpacity: 0.5,
-                                                shadowRadius: 4,
-                                                shadowOffset: { width: 0, height: 0 }
-                                            }}
-                                            className="h-full rounded-full"
-                                        />
+                                    {/* Right: XP */}
+                                    <View style={styles.xpContainer}>
+                                        <Text style={[styles.xpValue, { color: config.color }]}>
+                                            {item.totalXp.toLocaleString()}
+                                        </Text>
+                                        <Text style={styles.xpLabel}>XP</Text>
+                                        {item.todayXp > 0 && (
+                                            <Text style={styles.todayXpText}>+{item.todayXp}</Text>
+                                        )}
                                     </View>
                                 </Animated.View>
                             );
                         })}
                     </View>
 
-                    {/* --- 3. FOOTER BUTTON --- */}
-                    <TouchableOpacity
-                        onPress={onClose}
-                        activeOpacity={0.8}
-                        className="mt-10 self-center z-50"
-                    >
-                        <View className="w-12 h-12 rounded-full bg-white/10 border border-white/10 items-center justify-center">
-                            <Ionicons name="close" size={20} color="white" />
-                        </View>
+                    {/* Close Button */}
+                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                        <Text style={styles.closeButtonText}>Close</Text>
                     </TouchableOpacity>
-
-                </View>
+                </ScrollView>
             </Animated.View>
-
-            <PaywallModal
-                visible={paywallVisible}
-                onClose={() => setPaywallVisible(false)}
-            />
         </Modal>
     );
 };
+
+const styles = StyleSheet.create({
+    sheet: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: SCREEN_HEIGHT * 0.75,
+        backgroundColor: BG_COLOR,
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        overflow: "hidden",
+    },
+    handleContainer: {
+        alignItems: "center",
+        paddingVertical: 12,
+    },
+    handle: {
+        width: 40,
+        height: 5,
+        borderRadius: 3,
+        backgroundColor: "#D1D5DB",
+    },
+    header: {
+        alignItems: "center",
+        paddingVertical: 24,
+        paddingHorizontal: 20,
+    },
+    trophyCircle: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: "#FEF3C7",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 16,
+    },
+    totalXp: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 56,
+        color: TEXT_PRIMARY,
+        lineHeight: 60,
+    },
+    totalLabel: {
+        fontFamily: "Nunito-SemiBold",
+        fontSize: 16,
+        color: TEXT_SECONDARY,
+        marginTop: 4,
+    },
+    todayBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        backgroundColor: "#ECFDF5",
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 999,
+        marginTop: 16,
+    },
+    todayText: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 14,
+        color: SUCCESS_GREEN,
+    },
+    categoriesContainer: {
+        paddingHorizontal: 20,
+    },
+    sectionTitle: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 18,
+        color: TEXT_PRIMARY,
+        marginBottom: 16,
+    },
+    categoryCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    categoryIcon: {
+        width: 56,
+        height: 56,
+        borderRadius: 18,
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 14,
+    },
+    categoryInfo: {
+        flex: 1,
+    },
+    categoryName: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 16,
+        color: TEXT_PRIMARY,
+    },
+    levelText: {
+        fontFamily: "Nunito-Medium",
+        fontSize: 12,
+        color: TEXT_SECONDARY,
+        marginBottom: 8,
+    },
+    progressBg: {
+        height: 6,
+        backgroundColor: "#E5E7EB",
+        borderRadius: 3,
+        overflow: "hidden",
+    },
+    progressFill: {
+        height: "100%",
+        borderRadius: 3,
+    },
+    xpContainer: {
+        alignItems: "flex-end",
+        marginLeft: 12,
+    },
+    xpValue: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 20,
+    },
+    xpLabel: {
+        fontFamily: "Nunito-Medium",
+        fontSize: 11,
+        color: TEXT_SECONDARY,
+        marginTop: -2,
+    },
+    todayXpText: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 12,
+        color: SUCCESS_GREEN,
+        marginTop: 4,
+    },
+    closeButton: {
+        marginTop: 24,
+        marginHorizontal: 20,
+        backgroundColor: "#F3F4F6",
+        paddingVertical: 16,
+        borderRadius: 999,
+        alignItems: "center",
+    },
+    closeButtonText: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 16,
+        color: TEXT_SECONDARY,
+    },
+});

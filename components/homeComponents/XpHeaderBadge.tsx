@@ -1,44 +1,32 @@
 import { api } from "@/convex/_generated/api";
-import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity } from "react-native";
 import Animated, { Easing, FadeInDown, FadeOutUp } from "react-native-reanimated";
-// IMPORTANT: Ensure this path points to where you saved the XPModal file
 import { XPModal } from "./XPModal";
 
-// --- VISUAL CONFIGURATION ---
-// Premium Pokemon-style colors for the glass badge
-const CATEGORY_COLORS: Record<string, string> = {
-    health: '#10B981', // Emerald
-    mind: '#8B5CF6',   // Violet
-    career: '#2563EB', // Blue
-    life: '#D97706',   // Amber
-    fun: '#DB2777',    // Pink
-    default: '#64748B' // Slate
-};
+// Theme Colors
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
 
-const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-    health: 'fitness',
-    mind: 'book',
-    career: 'briefcase',
-    life: 'leaf',
-    fun: 'game-controller',
+// Category Config
+const CATEGORY_STYLES: Record<string, { color: string; icon: string; bg: string }> = {
+    health: { color: "#10B981", icon: "💧", bg: "#ECFDF5" },
+    mind: { color: "#8B5CF6", icon: "🧘", bg: "#F5F3FF" },
+    career: { color: "#3B82F6", icon: "💼", bg: "#EFF6FF" },
+    life: { color: "#F59E0B", icon: "🌟", bg: "#FFFBEB" },
+    fun: { color: "#EC4899", icon: "🎮", bg: "#FDF2F8" },
+    default: { color: ACCENT_ORANGE, icon: "✨", bg: "#FFF7ED" },
 };
 
 export const XPHeaderBadge = () => {
-    // 1. Fetch Stats
     const stats = useQuery(api.stats.getMyStats) || [];
-
-    // 2. Local State
     const [currentIndex, setCurrentIndex] = useState(0);
     const [showXPModal, setShowXPModal] = useState(false);
-
-    // 3. Ref to track previous XP (to trigger updates)
     const previousStats = useRef<Record<string, number>>({});
 
-    // --- EFFECT: Auto-Cycle ---
-    // Rotates through the available categories every 4 seconds
+    // Auto-cycle every 4 seconds
     useEffect(() => {
         if (stats.length === 0) return;
         const interval = setInterval(() => {
@@ -47,87 +35,86 @@ export const XPHeaderBadge = () => {
         return () => clearInterval(interval);
     }, [stats.length]);
 
-    // --- EFFECT: Live Updates ---
-    // If XP increases in a specific category, jump to it immediately to show progress
+    // Jump to updated category on XP gain
     useEffect(() => {
         if (stats.length === 0) return;
         stats.forEach((stat, index) => {
             const prevXp = previousStats.current[stat.categoryKey] || 0;
             if (stat.totalXp > prevXp) {
-                // Jump to the updated category
                 setCurrentIndex(index);
             }
-            // Update ref
             previousStats.current[stat.categoryKey] = stat.totalXp;
         });
     }, [stats]);
 
-    // --- RENDER HELPERS ---
     const currentStat = stats[currentIndex];
-    const activeCategory = currentStat ? currentStat.categoryKey : 'default';
-    const activeColor = CATEGORY_COLORS[activeCategory] || CATEGORY_COLORS.default;
-
-    // Don't render until data loads
     if (!currentStat) return null;
+
+    const categoryStyle = CATEGORY_STYLES[currentStat.categoryKey] || CATEGORY_STYLES.default;
+    const totalXp = stats.reduce((sum, s) => sum + (s.totalXp || 0), 0);
+
+    // Format XP (1250 -> 1.2K)
+    const formatXp = (xp: number) => {
+        if (xp >= 1000) {
+            return (xp / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+        }
+        return xp.toString();
+    };
 
     return (
         <>
-            {/* --- BADGE COMPONENT --- */}
             <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => setShowXPModal(true)}
-                style={{
-                    backgroundColor: 'white',
-                    height: 36,
-                    borderRadius: 18,
-                    paddingLeft: 4,
-                    paddingRight: 10,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 5,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 8,
-                    elevation: 2,
-                }}
+                style={styles.badge}
             >
-                {/* Animated Content Container */}
+                {/* Icon */}
                 <Animated.View
                     key={currentStat.categoryKey}
-                    entering={FadeInDown.duration(300).easing(Easing.out(Easing.cubic))}
-                    exiting={FadeOutUp.duration(200)}
-                    className="flex-row items-center gap-1.5"
+                    entering={FadeInDown.duration(250).easing(Easing.out(Easing.cubic))}
+                    exiting={FadeOutUp.duration(150)}
+                    style={[styles.iconCircle, { backgroundColor: categoryStyle.bg }]}
                 >
-                    {/* Icon Circle */}
-                    <View
-                        className="w-7 h-7 rounded-full items-center justify-center"
-                        style={{ backgroundColor: activeColor + '15' }}
-                    >
-                        <Ionicons
-                            name={CATEGORY_ICONS[currentStat.categoryKey] || 'star'}
-                            size={13}
-                            color={activeColor}
-                        />
-                    </View>
-
-                    {/* Text Details */}
-                    <View>
-                        <Text className="text-[9px] font-inter-bold uppercase leading-3 tracking-wide" style={{ color: '#94A3B8' }}>
-                            {currentStat.categoryKey}
-                        </Text>
-                        <Text className="text-[13px] font-inter-bold leading-4" style={{ color: '#1E293B' }}>
-                            {currentStat.totalXp.toLocaleString()} XP
-                        </Text>
-                    </View>
+                    <Text style={{ fontSize: 14 }}>{categoryStyle.icon}</Text>
                 </Animated.View>
+
+                {/* XP Text */}
+                <Text style={styles.xpText}>{formatXp(totalXp)}</Text>
             </TouchableOpacity>
 
-            {/* --- THE XP MODAL --- */}
-            <XPModal
-                visible={showXPModal}
-                onClose={() => setShowXPModal(false)}
-            />
+            <XPModal visible={showXPModal} onClose={() => setShowXPModal(false)} />
         </>
     );
 };
+
+const styles = StyleSheet.create({
+    badge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        height: 44,
+        borderRadius: 22,
+        paddingLeft: 5,
+        paddingRight: 12,
+        gap: 6,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+        elevation: 2,
+        borderWidth: 1.5,
+        borderColor: "#F3F4F6",
+    },
+    iconCircle: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    xpText: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 14,
+        color: TEXT_PRIMARY,
+    },
+});

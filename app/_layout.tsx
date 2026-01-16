@@ -125,19 +125,6 @@ function InitialLayout() {
     "GeneralSans-Semibold": require("../assets/fonts/generalsans/GeneralSans-Semibold.otf"),
     "GeneralSans-Bold": require("../assets/fonts/generalsans/GeneralSans-Bold.otf"),
 
-    "ClashDisplay-Extralight": require("../assets/fonts/clashdisplay/ClashDisplay-Extralight.otf"),
-    "ClashDisplay-Light": require("../assets/fonts/clashdisplay/ClashDisplay-Light.otf"),
-    "ClashDisplay-Regular": require("../assets/fonts/clashdisplay/ClashDisplay-Regular.otf"),
-    "ClashDisplay-Medium": require("../assets/fonts/clashdisplay/ClashDisplay-Medium.otf"),
-    "ClashDisplay-Semibold": require("../assets/fonts/clashdisplay/ClashDisplay-Semibold.otf"),
-    "ClashDisplay-Bold": require("../assets/fonts/clashdisplay/ClashDisplay-Bold.otf"),
-
-    "BricolageGrotesk-Extralight": require("../assets/fonts/bricolage/BricolageGrotesque-ExtraLight.ttf"),
-    "BricolageGrotesk-Light": require("../assets/fonts/bricolage/BricolageGrotesque-Light.ttf"),
-    "BricolageGrotesk-Regular": require("../assets/fonts/bricolage/BricolageGrotesque-Regular.ttf"),
-    "BricolageGrotesk-Medium": require("../assets/fonts/bricolage/BricolageGrotesque-Medium.ttf"),
-    "BricolageGrotesk-Semibold": require("../assets/fonts/bricolage/BricolageGrotesque-SemiBold.ttf"),
-    "BricolageGrotesk-Bold": require("../assets/fonts/bricolage/BricolageGrotesque-Bold.ttf"),
 
     "Inter-Extralight": require("../assets/fonts/Inter_24pt-ExtraLight.ttf"),
     "Inter-Light": require("../assets/fonts/Inter_24pt-Light.ttf"),
@@ -145,6 +132,15 @@ function InitialLayout() {
     "Inter-Medium": require("../assets/fonts/Inter_24pt-Medium.ttf"),
     "Inter-Semibold": require("../assets/fonts/Inter_24pt-SemiBold.ttf"),
     "Inter-Bold": require("../assets/fonts/Inter_24pt-Bold.ttf"),
+
+    "Nunito-Black": require("../assets/fonts/nunito/Nunito-Black.ttf"),
+    "Nunito-Bold": require("../assets/fonts/nunito/Nunito-Bold.ttf"),
+    "Nunito-ExtraBold": require("../assets/fonts/nunito/Nunito-ExtraBold.ttf"),
+    "Nunito-ExtraLight": require("../assets/fonts/nunito/Nunito-ExtraLight.ttf"),
+    "Nunito-Light": require("../assets/fonts/nunito/Nunito-Light.ttf"),
+    "Nunito-Medium": require("../assets/fonts/nunito/Nunito-Medium.ttf"),
+    "Nunito-Regular": require("../assets/fonts/nunito/Nunito-Regular.ttf"),
+    "Nunito-SemiBold": require("../assets/fonts/nunito/Nunito-SemiBold.ttf"),
   });
 
   useEffect(() => {

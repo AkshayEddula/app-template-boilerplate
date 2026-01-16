@@ -5,21 +5,17 @@ import { SquircleCard } from "@/components/homeComponents/SquircleCard";
 import { StreakModal } from "@/components/homeComponents/StreakModal";
 import { TrackingModal } from "@/components/homeComponents/TrackingModal";
 import { XPHeaderBadge } from "@/components/homeComponents/XpHeaderBadge";
-import { PaywallModal } from "@/components/Paywall"; // <--- 1. IMPORT PAYWALL
-import { useGuest } from "@/context/GuestContext"; // <--- IMPORT GUEST CONTEXT
-import { useSubscription } from "@/context/SubscriptionContext"; // <--- 2. IMPORT CONTEXT
+import { PaywallModal } from "@/components/Paywall";
+import { useGuest } from "@/context/GuestContext";
+import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from "@/convex/_generated/api";
 import { Ionicons } from "@expo/vector-icons";
-import { Fire02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react-native";
 import { useQuery } from "convex/react";
-import { GlassView } from "expo-glass-effect";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { setStatusBarStyle } from "expo-status-bar";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
-  StatusBar,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View
@@ -34,9 +30,12 @@ import Animated, {
   withTiming
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  scheduleOnUI,
-} from "react-native-worklets";
+
+// Theme Colors
+const BG_COLOR = "#FAF9F6";
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
 
 // --- Types ---
 type Resolution = {
@@ -54,12 +53,45 @@ type Resolution = {
   lastCompletedDate?: string;
 };
 
-const FILTER_DAYS = [
-  { key: "today", label: "Today" },
-  { key: "pending", label: "Pending" },
-  { key: "completed", label: "Completed" },
-  { key: "all", label: "All Goals" },
-];
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Morning";
+  if (hour < 17) return "Afternoon";
+  return "Evening";
+};
+
+const getFormattedDate = () => {
+  const now = new Date();
+  return now.toLocaleDateString("en-US", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const getWeekDays = () => {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+
+  const days = [];
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + i);
+    days.push({
+      name: dayNames[i],
+      date: date.getDate(),
+      isToday: date.toDateString() === today.toDateString(),
+      isPast: date < today && date.toDateString() !== today.toDateString(),
+      fullDate: date,
+    });
+  }
+  return days;
+};
 
 const isTaskAvailableOnDate = (item: Resolution, date: Date) => {
   const day = date.getDay();
@@ -75,8 +107,87 @@ const isTaskAvailableOnDate = (item: Resolution, date: Date) => {
 const isTaskToday = (item: Resolution) =>
   isTaskAvailableOnDate(item, new Date());
 
-// --- Components ---
+// --- Week Strip Component ---
+const WeekStrip = ({ streakDays }: { streakDays: string[] }) => {
+  const weekDays = getWeekDays();
 
+  return (
+    <View style={{ marginBottom: 24 }}>
+      {/* Day Names */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10, paddingHorizontal: 4 }}>
+        {weekDays.map((day, index) => (
+          <Text
+            key={index}
+            style={{
+              width: 44,
+              textAlign: "center",
+              fontSize: 12,
+              fontFamily: day.isToday ? "Nunito-Bold" : "Nunito-Medium",
+              color: day.isToday ? TEXT_PRIMARY : TEXT_SECONDARY,
+            }}
+          >
+            {day.name}
+          </Text>
+        ))}
+      </View>
+
+      {/* Day Circles with Streak Indicators */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 4 }}>
+        {weekDays.map((day, index) => {
+          const dateStr = day.fullDate.toISOString().split("T")[0];
+          const hasStreak = streakDays.includes(dateStr);
+          const isFuture = day.fullDate > new Date() && !day.isToday;
+
+          return (
+            <View
+              key={index}
+              style={{
+                width: 44,
+                alignItems: "center",
+              }}
+            >
+              {/* Day Number Circle */}
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 14,
+                  backgroundColor: day.isToday ? TEXT_PRIMARY : "#F3F4F6",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 6,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontFamily: "Nunito-Bold",
+                    color: day.isToday ? "#FFFFFF" : isFuture ? "#D1D5DB" : TEXT_PRIMARY,
+                  }}
+                >
+                  {day.date}
+                </Text>
+              </View>
+
+              {/* Streak Fire Symbol */}
+              <Text
+                style={{
+                  fontSize: 14,
+                  opacity: hasStreak ? 1 : isFuture ? 0.2 : 0.3,
+                }}
+              >
+                {hasStreak ? "🔥" : "🔥"}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+};
+
+
+// --- Skeleton Card ---
 const SkeletonCard = ({ index }: { index: number }) => {
   const opacity = useSharedValue(0.5);
 
@@ -103,108 +214,50 @@ const SkeletonCard = ({ index }: { index: number }) => {
       entering={FadeIn.delay(index * 100).duration(400)}
       style={[
         {
-          height: 220,
-          marginBottom: 16,
-          borderRadius: 40,
-          backgroundColor: "rgba(255,255,255,0.1)",
-          padding: 24,
-          overflow: "hidden",
+          height: 80,
+          marginBottom: 12,
+          borderRadius: 20,
+          backgroundColor: "#E5E7EB",
         },
         animatedStyle,
       ]}
-    >
-      {/* Label Pill Skeleton */}
-      <View className="flex-row justify-between mb-8">
-        <View className="w-24 h-8 bg-white/20 rounded-full" />
-        <View className="w-16 h-8 bg-white/20 rounded-full" />
-      </View>
-
-      {/* Title Skeletons */}
-      <View className="mb-6">
-        <View className="w-3/4 h-8 bg-white/20 rounded-lg mb-3" />
-        <View className="w-1/2 h-8 bg-white/20 rounded-lg" />
-      </View>
-
-      {/* Footer Skeleton */}
-      <View className="mt-auto flex-row items-center gap-3">
-        <View className="w-3 h-3 rounded-full bg-white/20" />
-        <View className="w-32 h-4 bg-white/20 rounded-lg" />
-      </View>
-    </Animated.View>
+    />
   );
 };
 
+// --- Empty State ---
 const EmptyState = ({ filter }: { filter: string }) => {
-  const getMessage = () => {
-    switch (filter) {
-      case "today":
-        return {
-          title: "All Clear For Today",
-          subtitle: "No active resolutions scheduled for today.",
-          icon: "sunny",
-        };
-      case "pending":
-        return {
-          title: "You're All Caught Up!",
-          subtitle: "Outstanding work! No pending goals.",
-          icon: "checkmark-done-circle",
-        };
-      case "completed":
-        return {
-          title: "No Completions Yet",
-          subtitle: "Complete a goal to see it here.",
-          icon: "time",
-        };
-      default:
-        return {
-          title: "Your Journey Awaits",
-          subtitle: "Tap the + button to create your first resolution.",
-          icon: "flag",
-        };
-    }
-  };
-
-  const content = getMessage();
-
   return (
-    <View className="items-center justify-center pt-20 px-4">
-      {/* Icon Container */}
-      <View className="mb-6 relative">
-        <View className="w-24 h-24 rounded-[32px] bg-white/10 items-center justify-center border border-white/20 rotate-3">
-          <Ionicons name={content.icon as any} size={48} color="white" />
-        </View>
-        <View className="absolute -bottom-2 -right-2 w-12 h-12 rounded-full bg-[#3A7AFE] items-center justify-center border-4 border-[#5B8DEF]">
-          <Ionicons name="sparkles" size={20} color="white" />
-        </View>
+    <View style={{ alignItems: "center", justifyContent: "center", paddingTop: 60 }}>
+      <View
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 20,
+          backgroundColor: "#F3F4F6",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 16,
+        }}
+      >
+        <Ionicons name="sunny-outline" size={32} color={ACCENT_ORANGE} />
       </View>
-
-      <Text className="text-white font-generalsans-bold text-2xl text-center mb-2 tracking-tight">
-        {content.title}
+      <Text style={{ fontFamily: "Nunito-Bold", fontSize: 18, color: TEXT_PRIMARY, marginBottom: 4 }}>
+        All Clear!
       </Text>
-      <Text className="text-white/60 font-generalsans-medium text-base text-center max-w-[280px] leading-6">
-        {content.subtitle}
+      <Text style={{ fontFamily: "Nunito-Medium", fontSize: 14, color: TEXT_SECONDARY, textAlign: "center" }}>
+        No tasks for this filter.
       </Text>
-
-      {filter === "all" && (
-        <View className="mt-8">
-          <Ionicons
-            name="arrow-down"
-            size={24}
-            color="rgba(255,255,255,0.3)"
-            className="animate-bounce"
-          />
-        </View>
-      )}
     </View>
   );
 };
 
+// --- Main Component ---
 export default function HomeScreen() {
   const router = useRouter();
-  const { isPremium } = useSubscription(); // <--- 3. GET PREMIUM STATUS
-
-  // Queries
+  const { isPremium } = useSubscription();
   const { isGuest, guestResolutions } = useGuest();
+
   const user = useQuery(api.users.currentUser);
   const resolutions = useQuery(api.userResolutions.listActive);
   const allCards = useQuery(api.stats.getAllCards);
@@ -215,17 +268,23 @@ export default function HomeScreen() {
   const isLoading = isGuest ? false : (resolutions === undefined || todayLogs === undefined);
 
   // State
-  const [selectedResolution, setSelectedResolution] =
-    useState<Resolution | null>(null);
+  const [selectedResolution, setSelectedResolution] = useState<Resolution | null>(null);
   const [isModalReadOnly, setIsModalReadOnly] = useState(false);
   const [trackingModalVisible, setTrackingModalVisible] = useState(false);
   const [selectedDayFilter, setSelectedDayFilter] = useState("today");
 
-  // New States
+  // Modal States
   const [levelUpVisible, setLevelUpVisible] = useState(false);
   const [collectionVisible, setCollectionVisible] = useState(false);
   const [streakModalVisible, setStreakModalVisible] = useState(false);
-  const [paywallVisible, setPaywallVisible] = useState(false); // <--- 4. PAYWALL STATE
+  const [paywallVisible, setPaywallVisible] = useState(false);
+
+  // Reset status bar when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle("dark");
+    }, [])
+  );
 
   const [levelUpData, setLevelUpData] = useState<{
     key: string;
@@ -233,33 +292,38 @@ export default function HomeScreen() {
     isLevelUp: boolean;
   } | null>(null);
 
-  const selectedIndex = useSharedValue(0);
-  const containerWidth = useSharedValue(0);
+  // Get streak days for this week
+  const streakDays = useMemo(() => {
+    if (!todayLogs) return [];
+    return todayLogs
+      .filter(log => log.isCompleted)
+      .map(log => todayStr);
+  }, [todayLogs, todayStr]);
 
   const sortedResolutions = useMemo(() => {
     if (!finalResolutions) return [];
-    // Cast strictly for mapping if needed, or use 'any' if types mismatch
     return (finalResolutions as any[])
       .filter((item) => {
         const isToday = isTaskToday(item as Resolution);
-
         let isCompleted = false;
         if (isGuest) {
           isCompleted = item.logs?.[todayStr]?.isCompleted || false;
         } else {
-          isCompleted = todayLogs?.find(
-            (l) => l.userResolutionId === item._id,
-          )?.isCompleted || false;
+          isCompleted = todayLogs?.find((l) => l.userResolutionId === item._id)?.isCompleted || false;
         }
-
-        if (selectedDayFilter === "today") return isToday;
+        // Show all in "today" (All) view, including not scheduled
+        if (selectedDayFilter === "today") return true;
         if (selectedDayFilter === "pending") return isToday && !isCompleted;
         if (selectedDayFilter === "completed") return isToday && isCompleted;
         return true;
       })
-      .sort((a, b) => (isTaskToday(a as Resolution) ? (isTaskToday(b as Resolution) ? 0 : -1) : 1))
       .sort((a, b) => {
-        // Put incomplete first
+        // First sort: Today's tasks first, then not scheduled
+        const aIsToday = isTaskToday(a as Resolution);
+        const bIsToday = isTaskToday(b as Resolution);
+        if (aIsToday !== bIsToday) return aIsToday ? -1 : 1;
+
+        // Second sort: Incomplete first, completed last
         const aComp = isGuest ? a.logs?.[todayStr]?.isCompleted : todayLogs?.find(l => l.userResolutionId === a._id)?.isCompleted;
         const bComp = isGuest ? b.logs?.[todayStr]?.isCompleted : todayLogs?.find(l => l.userResolutionId === b._id)?.isCompleted;
         if (aComp === bComp) return 0;
@@ -267,173 +331,143 @@ export default function HomeScreen() {
       });
   }, [finalResolutions, todayLogs, selectedDayFilter, isGuest, todayStr]);
 
-  useEffect(() => {
-    const idx = FILTER_DAYS.findIndex((f) => f.key === selectedDayFilter);
-    scheduleOnUI(() => {
-      "worklet";
-      selectedIndex.value = idx;
-    });
-  }, [selectedDayFilter]);
-
-  const indicatorPosition = useAnimatedStyle(() => {
-    const tabWidth = containerWidth.value / FILTER_DAYS.length;
-    return {
-      width: tabWidth,
-      transform: [
-        {
-          translateX: withTiming(selectedIndex.value * tabWidth, {
-            duration: 300,
-          }),
-        },
-      ],
-      opacity: containerWidth.value > 0 ? 1 : 0,
-    };
-  });
-
   return (
-    <View className="flex-1 bg-[#3A7AFE]">
-      <StatusBar
-        barStyle="light-content"
-        translucent
-        backgroundColor="transparent"
-      />
+    <View style={{ flex: 1, backgroundColor: BG_COLOR }}>
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
-        <View className="flex-1 w-full max-w-[600px] self-center">
+        <View style={{ flex: 1, width: "100%", maxWidth: 600, alignSelf: "center" }}>
           {/* --- HEADER --- */}
-          <View className="px-6 pb-6 pt-2 flex-row justify-between items-center">
-            {/* STREAK BADGE */}
-            <TouchableOpacity
-              onPress={() => setStreakModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <View className="flex-row items-center pl-2 pr-3 py-1.5 rounded-[36px]">
-                <GlassView
-                  style={{
-                    ...StyleSheet.absoluteFillObject,
-                    borderRadius: 36,
-                    overflow: "hidden",
-                  }}
-                  glassEffectStyle="regular"
-                  tintColor="#3A7AFE"
-                />
-                <View className="mr-1">
-                  <HugeiconsIcon
-                    icon={Fire02Icon}
-                    color={user?.currentStreak ? "#fff" : "#fff"}
-                    size={22}
-                    strokeWidth={1}
-                    pointerEvents="none"
-                  />
-                </View>
-                <Text className="text-white font-generalsans-bold text-[16px]">
-                  {user?.currentStreak || 0}
+          <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 }}>
+            {/* Greeting Row */}
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: "Nunito-Bold", fontSize: 26, color: TEXT_PRIMARY }}>
+                  {getGreeting()}, {user?.name?.split(" ")[0] || "there"}
+                </Text>
+                <Text style={{ fontFamily: "Nunito-Medium", fontSize: 13, color: TEXT_SECONDARY, marginTop: 2 }}>
+                  {getFormattedDate()}
                 </Text>
               </View>
-            </TouchableOpacity>
 
-            <View className="flex-row items-center justify-center gap-2">
+              {/* Right: XP Badge, Vault & Streak Buttons */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                {/* XP Badge */}
+                <XPHeaderBadge />
 
-
-              <View className="rounded-[32px]">
-                <GlassView
-                  style={{
-                    ...StyleSheet.absoluteFillObject,
-                    borderRadius: 32,
-                    overflow: "hidden",
-                  }}
-                  glassEffectStyle="regular"
-                  tintColor="#00e38cff"
-                />
+                {/* Vault Button */}
                 <TouchableOpacity
                   onPress={() => setCollectionVisible(true)}
-                  className="flex flex-row gap-x-1 p-3 rounded-[32px]"
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    backgroundColor: "#F0FDF4",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 2,
+                    borderColor: "#BBF7D0",
+                  }}
                 >
-                  <Ionicons name="albums" size={16} color="white" />
-                  <Text className="text-white font-generalsans-semibold text-[14px] tracking-tight">
-                    Vault
-                  </Text>
+                  <Text style={{ fontSize: 20 }}>📦</Text>
+                </TouchableOpacity>
+
+                {/* Streak Button */}
+                <TouchableOpacity
+                  onPress={() => setStreakModalVisible(true)}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    backgroundColor: "#FEF3C7",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 2,
+                    borderColor: "#FDE68A",
+                  }}
+                >
+                  <Text style={{ fontSize: 20 }}>🔥</Text>
                 </TouchableOpacity>
               </View>
-
-              <XPHeaderBadge />
             </View>
           </View>
 
-          {/* --- TABS --- */}
-          <View className="flex-row items-center mx-5 mb-6 gap-3">
-            <GlassView
-              glassEffectStyle="regular"
-              isInteractive
-              tintColor="#3A7AFE"
-              style={{ flex: 1, borderRadius: 999, overflow: "hidden" }}
-            >
-              <View
-                style={{ padding: 4, flexDirection: "row", position: "relative" }}
-                onLayout={(e) =>
-                  (containerWidth.value = e.nativeEvent.layout.width - 8)
-                }
-              >
-                <Animated.View
-                  style={[
-                    indicatorPosition,
-                    {
-                      position: "absolute",
-                      left: 4,
-                      top: 4,
-                      bottom: 4,
-                      borderRadius: 999,
-                      overflow: "hidden",
-                    },
-                  ]}
-                >
-                  <GlassView glassEffectStyle="regular" style={{ flex: 1 }} />
-                </Animated.View>
-                {FILTER_DAYS.map((filter) => (
-                  <TouchableOpacity
-                    key={filter.key}
-                    onPress={() => setSelectedDayFilter(filter.key)}
-                    className="flex-1 py-3.5 items-center"
-                  >
-                    <Text
-                      className={`text-[12px] font-generalsans-semibold ${selectedDayFilter === filter.key ? "text-white" : "text-white/70"}`}
-                    >
-                      {filter.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </GlassView>
-
-            <GlassView
-              glassEffectStyle="regular"
-              tintColor="#3A7AFE"
-              isInteractive
-              style={{
-                width: 48,
-                aspectRatio: 1,
-                borderRadius: 999,
-                overflow: "hidden",
-              }}
-            >
-              <TouchableOpacity
-                onPress={() => {
-                  // Example: Limit free users to 3 resolutions
-                  /* if (!isPremium && resolutions && resolutions.length >= 3) {
-                    setPaywallVisible(true);
-                    return;
-                  } */
-                  router.push("/create");
-                }}
-                className="flex-1 items-center justify-center"
-              >
-                <Ionicons name="add" size={28} color="white" />
-              </TouchableOpacity>
-            </GlassView>
+          {/* Week Strip */}
+          <View style={{ paddingHorizontal: 20 }}>
+            <WeekStrip streakDays={streakDays} />
           </View>
 
-          {/* --- LIST vs LOADING --- */}
+          {/* Daily Routine Header */}
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, marginBottom: 12 }}>
+            <Text style={{ fontFamily: "Nunito-Bold", fontSize: 20, color: TEXT_PRIMARY }}>
+              Daily routine
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push("/create")}
+              activeOpacity={0.8}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: ACCENT_ORANGE,
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                borderRadius: 999,
+                shadowColor: ACCENT_ORANGE,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 4,
+              }}
+            >
+              <Ionicons name="add" size={18} color="#FFFFFF" />
+              <Text style={{ fontFamily: "Nunito-Bold", fontSize: 13, color: "#FFFFFF" }}>
+                Add Goal
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Filter Pills */}
+          <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 20, marginBottom: 16 }}>
+            {[
+              { key: "today", label: "All", emoji: "📋" },
+              { key: "pending", label: "Pending", emoji: "⏳" },
+              { key: "completed", label: "Done", emoji: "✅" },
+            ].map((filter) => {
+              const isActive = selectedDayFilter === filter.key;
+              return (
+                <TouchableOpacity
+                  key={filter.key}
+                  onPress={() => setSelectedDayFilter(filter.key)}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingVertical: 10,
+                    paddingHorizontal: 16,
+                    borderRadius: 999,
+                    backgroundColor: isActive ? TEXT_PRIMARY : "#FFFFFF",
+                    borderWidth: 1.5,
+                    borderColor: isActive ? TEXT_PRIMARY : "#E5E7EB",
+                  }}
+                >
+                  <Text style={{ fontSize: 14 }}>{filter.emoji}</Text>
+                  <Text
+                    style={{
+                      fontFamily: "Nunito-Bold",
+                      fontSize: 13,
+                      color: isActive ? "#FFFFFF" : TEXT_SECONDARY,
+                    }}
+                  >
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* --- LIST --- */}
           {isLoading ? (
-            <View className="flex-1 px-5 pt-2">
+            <View style={{ flex: 1, paddingHorizontal: 20 }}>
               {[1, 2, 3].map((i) => (
                 <SkeletonCard key={i} index={i} />
               ))}
@@ -462,13 +496,10 @@ export default function HomeScreen() {
                   }}
                 />
               )}
-              ListEmptyComponent={
-                <EmptyState filter={selectedDayFilter} />
-              }
+              ListEmptyComponent={<EmptyState filter={selectedDayFilter} />}
               contentContainerStyle={{
                 paddingHorizontal: 20,
-                paddingBottom: 120, // Increased bottom padding for floating feel
-                paddingTop: 8,
+                paddingBottom: 120,
               }}
             />
           )}
@@ -485,9 +516,7 @@ export default function HomeScreen() {
           selectedResolution
             ? (isGuest
               ? ((selectedResolution as any).logs?.[todayStr]?.value || 0)
-              : todayLogs?.find(
-                (l) => l.userResolutionId === selectedResolution._id,
-              )?.currentValue
+              : todayLogs?.find((l) => l.userResolutionId === selectedResolution._id)?.currentValue
             )
             : 0
         }
@@ -495,7 +524,6 @@ export default function HomeScreen() {
           const { current: oldStage } = getCurrentStageInfo(oldXp);
           const { current: newStage } = getCurrentStageInfo(newXp);
           const isLevelUp = newStage.stage > oldStage.stage;
-
           setLevelUpData({ key: cat, xp: newXp, isLevelUp });
           setLevelUpVisible(true);
         }}
@@ -525,7 +553,6 @@ export default function HomeScreen() {
         globalStreak={user?.currentStreak || 0}
       />
 
-      {/* --- PAYWALL MODAL --- */}
       <PaywallModal
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}

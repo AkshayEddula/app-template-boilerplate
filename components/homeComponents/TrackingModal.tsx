@@ -2,15 +2,13 @@ import { useGuest } from "@/context/GuestContext";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Ionicons } from "@expo/vector-icons";
-import { Fire02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react-native";
 import { useMutation } from "convex/react";
 import { BlurView } from "expo-blur";
-import { GlassView } from "expo-glass-effect";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -25,20 +23,22 @@ import Animated, {
   Easing,
   FadeIn,
   FadeInDown,
-  FadeInRight,
   FadeInUp,
-  FadeOut,
-  FadeOutLeft,
-  LinearTransition,
   useAnimatedProps,
   useAnimatedStyle,
-  withTiming,
+  withTiming
 } from "react-native-reanimated";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 
-// --- CONSTANTS & HELPERS ---
+// Theme Colors
+const BG_COLOR = "#FAF9F6";
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
+const SUCCESS_GREEN = "#22C55E";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SMOOTH_EASING = Easing.bezier(0.4, 0.0, 0.2, 1);
-const DURATION_SLOW = 400;
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const formatTime = (totalSeconds: number) => {
@@ -47,95 +47,27 @@ const formatTime = (totalSeconds: number) => {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 };
 
-// --- SUB-COMPONENT: Advanced Day Selector (Ported) ---
-const AdvancedDaySelector = ({
-  selectedDays = [],
-  toggleDay,
-  setCustomDays,
-}: {
-  selectedDays: number[];
-  toggleDay: (d: number) => void;
-  setCustomDays: (days: number[]) => void;
-}) => {
-  const days = [
-    { l: "S", v: 0 },
-    { l: "M", v: 1 },
-    { l: "T", v: 2 },
-    { l: "W", v: 3 },
-    { l: "T", v: 4 },
-    { l: "F", v: 5 },
-    { l: "S", v: 6 },
-  ];
+// Day Names
+const DAY_NAMES = ["S", "M", "T", "W", "T", "F", "S"];
 
-  return (
-    <View className="mt-4 mb-4">
-      <View className="flex-row justify-between items-end mb-3 px-1">
-        <Text className="text-white/30 font-generalsans-bold text-[9px] uppercase tracking-[1px]">
-          Select Specific Days
-        </Text>
-        <TouchableOpacity onPress={() => setCustomDays([])}>
-          <Text className="text-white/40 font-generalsans-bold text-[10px] uppercase tracking-tight">
-            Reset
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <GlassView
-        glassEffectStyle="regular"
-        tintColor="#3A7AFE"
-        style={{
-          borderRadius: 20,
-          padding: 8,
-          borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.1)",
-          overflow: "hidden",
-        }}
-      >
-        <View className="flex-row justify-between">
-          {days.map((day) => {
-            const isSelected = selectedDays.includes(day.v);
-            return (
-              <TouchableOpacity
-                key={day.v}
-                onPress={() => toggleDay(day.v)}
-                activeOpacity={0.6}
-                className={`w-10 h-10 rounded-full items-center justify-center ${isSelected ? "bg-white" : "bg-white/5"}`}
-              >
-                <Text
-                  className={`font-generalsans-bold text-xs ${isSelected ? "text-[#3A7AFE]" : "text-white/40"}`}
-                >
-                  {day.l}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </GlassView>
-    </View>
-  );
+// --- Types ---
+type Resolution = {
+  _id: string;
+  title: string;
+  description?: string;
+  categoryKey: string;
+  frequencyType: string;
+  trackingType: "yes_no" | "time_based" | "count_based";
+  targetCount?: number;
+  countUnit?: string;
+  targetTime?: number;
+  customDays?: number[];
+  daysPerWeek?: number;
+  currentStreak?: number;
+  lastCompletedDate?: string;
 };
 
-// --- SUB-COMPONENT: Progress Dot ---
-const ProgressDot = ({ active }: { active: boolean }) => {
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      width: withTiming(active ? 24 : 6, { duration: 300 }),
-      backgroundColor: withTiming(
-        active ? "#FFFFFF" : "rgba(255, 255, 255, 0.2)",
-        { duration: 300 },
-      ),
-    };
-  });
-
-  return (
-    <Animated.View
-      className="h-1.5 rounded-full shadow-sm shadow-white"
-      style={animatedStyle}
-    />
-  );
-};
-
-// --- CALENDAR / HEATMAP LOGIC ---
+// --- Calendar Heatmap ---
 const getMonthData = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -160,25 +92,15 @@ const getMonthData = () => {
   }
   return {
     days,
-    monthName: now.toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric",
-    }),
+    monthName: now.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
   };
 };
 
-const MonthHeatmap = ({
-  streakCount,
-  lastCompletedDate,
-}: {
-  streakCount: number;
-  lastCompletedDate: string | undefined;
-}) => {
+const MonthHeatmap = ({ streakCount, lastCompletedDate }: { streakCount: number; lastCompletedDate?: string }) => {
   const { days, monthName } = useMemo(() => getMonthData(), []);
 
   const isDateInStreak = (dateStr: string) => {
-    if (!lastCompletedDate) return false;
-    if (!streakCount || streakCount <= 0) return false;
+    if (!lastCompletedDate || !streakCount || streakCount <= 0) return false;
     const target = new Date(dateStr);
     const last = new Date(lastCompletedDate);
     const diffTime = last.setHours(0, 0, 0, 0) - target.setHours(0, 0, 0, 0);
@@ -187,50 +109,33 @@ const MonthHeatmap = ({
   };
 
   return (
-    <View className="mt-4 w-full">
-      <View className="flex-row justify-between items-end mb-4 px-1">
-        <Text className="text-white/40 text-[10px] font-generalsans-bold uppercase tracking-widest">
-          {monthName}
-        </Text>
-        <View className="flex-row items-center gap-1.5">
-          <View className="w-1.5 h-1.5 rounded-full bg-[#FF9C00]" />
-          <Text className="text-[#FF9C00] text-[10px] font-generalsans-bold">
-            Active Streak
-          </Text>
+    <View style={{ marginTop: 16 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <Text style={styles.miniLabel}>{monthName}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ACCENT_ORANGE }} />
+          <Text style={{ fontFamily: "Nunito-SemiBold", fontSize: 11, color: ACCENT_ORANGE }}>Active</Text>
         </View>
       </View>
-
-      <View className="flex-row flex-wrap gap-[4px] justify-center">
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, justifyContent: "center" }}>
         {days.map((item) => {
-          if (item.isPadding)
-            return <View key={item.id} style={{ width: 28, height: 28 }} />;
-
+          if (item.isPadding) return <View key={item.id} style={{ width: 32, height: 32 }} />;
           const isFilled = item.date ? isDateInStreak(item.date) : false;
-          const isToday = item.isToday;
-
           return (
             <View
               key={item.id}
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: 14,
+                width: 32,
+                height: 32,
+                borderRadius: 10,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: isFilled
-                  ? "#FF9C00"
-                  : "rgba(255,255,255,0.05)",
-                borderWidth: isToday ? 1 : 0,
-                borderColor: isToday ? "rgba(255,255,255,0.8)" : "transparent",
+                backgroundColor: isFilled ? ACCENT_ORANGE : "#F3F4F6",
+                borderWidth: item.isToday ? 2 : 0,
+                borderColor: item.isToday ? TEXT_PRIMARY : "transparent",
               }}
             >
-              <Text
-                style={{
-                  fontSize: 10,
-                  fontFamily: "GeneralSans-Medium",
-                  color: isFilled ? "#FFF" : "rgba(255,255,255,0.2)",
-                }}
-              >
+              <Text style={{ fontSize: 11, fontFamily: "Nunito-Bold", color: isFilled ? "#FFF" : TEXT_SECONDARY }}>
                 {item.day}
               </Text>
             </View>
@@ -241,21 +146,145 @@ const MonthHeatmap = ({
   );
 };
 
-// --- TYPES ---
-type Resolution = {
-  _id: string;
-  title: string;
-  description?: string;
-  categoryKey: string;
-  frequencyType: string;
-  trackingType: "yes_no" | "time_based" | "count_based";
-  targetCount?: number;
-  countUnit?: string;
-  targetTime?: number;
-  customDays?: number[];
-  daysPerWeek?: number;
-  currentStreak?: number;
-  lastCompletedDate?: string;
+// --- Day Selector ---
+const DaySelector = ({ selectedDays, toggleDay, setCustomDays }: any) => (
+  <Animated.View entering={FadeInUp.duration(200)} style={{ marginTop: 16 }}>
+    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+      <Text style={styles.miniLabel}>Select Days</Text>
+      <TouchableOpacity onPress={() => setCustomDays([])}>
+        <Text style={{ fontFamily: "Nunito-Bold", fontSize: 12, color: ACCENT_ORANGE }}>Reset</Text>
+      </TouchableOpacity>
+    </View>
+    <View style={styles.daysRow}>
+      {DAY_NAMES.map((d, i) => {
+        const isSelected = selectedDays.includes(i);
+        return (
+          <TouchableOpacity
+            key={i}
+            onPress={() => toggleDay(i)}
+            style={[styles.dayCircle, isSelected && { backgroundColor: ACCENT_ORANGE }]}
+          >
+            <Text style={[styles.dayText, isSelected && { color: "#FFF" }]}>{d}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  </Animated.View>
+);
+
+// --- Progress Dot ---
+const ProgressDot = ({ active }: { active: boolean }) => {
+  const animStyle = useAnimatedStyle(() => ({
+    width: withTiming(active ? 20 : 8, { duration: 200 }),
+    backgroundColor: withTiming(active ? ACCENT_ORANGE : "#E5E7EB", { duration: 200 }),
+  }));
+  return <Animated.View style={[{ height: 8, borderRadius: 4 }, animStyle]} />;
+};
+
+// --- Timer Component ---
+const ModernTimer = ({ seconds, targetMinutes, isRunning, onToggle, onAddFive, disabled }: any) => {
+  const size = 200;
+  const strokeWidth = 12;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const targetSeconds = (targetMinutes || 1) * 60;
+  const progress = Math.min(seconds / targetSeconds, 1);
+  const isGoalMet = seconds >= targetSeconds;
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: withTiming(circumference * (1 - progress), { duration: 400, easing: SMOOTH_EASING }),
+  }));
+
+  return (
+    <View style={{ alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+        <Svg width={size} height={size} style={{ position: "absolute" }}>
+          <Defs>
+            <LinearGradient id="timerGrad" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={isGoalMet ? SUCCESS_GREEN : ACCENT_ORANGE} />
+              <Stop offset="1" stopColor={isGoalMet ? "#4ADE80" : "#FB923C"} />
+            </LinearGradient>
+          </Defs>
+          <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#E5E7EB" strokeWidth={strokeWidth} fill="none" />
+          <AnimatedCircle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="url(#timerGrad)"
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            animatedProps={animatedProps}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </Svg>
+        <View style={{ alignItems: "center" }}>
+          <Text style={{ fontFamily: "Nunito-Bold", fontSize: 48, color: TEXT_PRIMARY }}>{formatTime(seconds)}</Text>
+          <Text style={{ fontFamily: "Nunito-Medium", fontSize: 13, color: TEXT_SECONDARY }}>Goal: {targetMinutes} min</Text>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: "row", gap: 16, marginTop: 24 }}>
+        <TouchableOpacity
+          onPress={onToggle}
+          disabled={isGoalMet || disabled}
+          style={[styles.timerBtn, { backgroundColor: isGoalMet ? SUCCESS_GREEN : isRunning ? "#EF4444" : ACCENT_ORANGE }]}
+        >
+          <Ionicons name={isGoalMet ? "checkmark" : isRunning ? "pause" : "play"} size={28} color="#FFF" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onAddFive}
+          disabled={isGoalMet || disabled}
+          style={[styles.timerBtnSecondary, (isGoalMet || disabled) && { opacity: 0.4 }]}
+        >
+          <Text style={{ fontFamily: "Nunito-Bold", fontSize: 14, color: TEXT_PRIMARY }}>+5m</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+// --- Counter Component ---
+const CountCircles = ({ initialCount, target, onChange, disabled }: any) => {
+  const [count, setCount] = useState(initialCount);
+  useEffect(() => setCount(initialCount), [initialCount]);
+
+  const increment = () => {
+    if (disabled || count >= target) return;
+    const newCount = count + 1;
+    setCount(newCount);
+    onChange(newCount);
+  };
+  const decrement = () => {
+    if (disabled || count <= 0) return;
+    const newCount = count - 1;
+    setCount(newCount);
+    onChange(newCount);
+  };
+
+  return (
+    <View style={{ alignItems: "center", justifyContent: "center" }}>
+      <Text style={{ fontFamily: "Nunito-Bold", fontSize: 100, color: TEXT_PRIMARY }}>{count}</Text>
+      <View style={{ flexDirection: "row", gap: 6, marginTop: 8, marginBottom: 8 }}>
+        {Array.from({ length: target }, (_, i) => <ProgressDot key={i} active={i < count} />)}
+      </View>
+      <Text style={{ fontFamily: "Nunito-Medium", fontSize: 13, color: TEXT_SECONDARY, marginBottom: 24 }}>Target: {target}</Text>
+
+      <View style={{ flexDirection: "row", gap: 24 }}>
+        <TouchableOpacity onPress={decrement} disabled={disabled || count <= 0} style={styles.counterBtn}>
+          <Ionicons name="remove" size={28} color={count <= 0 ? "#D1D5DB" : TEXT_PRIMARY} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={increment}
+          disabled={disabled || count >= target}
+          style={[styles.counterBtn, { backgroundColor: count >= target ? "#E5E7EB" : ACCENT_ORANGE }]}
+        >
+          <Ionicons name="add" size={28} color={count >= target ? "#9CA3AF" : "#FFF"} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 };
 
 // --- MAIN COMPONENT ---
@@ -285,11 +314,9 @@ export const TrackingModal = ({
   const [countValue, setCountValue] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Tab State: 'log' | 'streak' | 'edit'
   const [activeTab, setActiveTab] = useState<"log" | "streak" | "edit">("log");
 
-  // --- EDIT STATE ---
+  // Edit State
   const [editTitle, setEditTitle] = useState("");
   const [editFrequency, setEditFrequency] = useState("daily");
   const [editCustomDays, setEditCustomDays] = useState<number[]>([]);
@@ -297,34 +324,26 @@ export const TrackingModal = ({
   const [editTargetValue, setEditTargetValue] = useState("");
   const [editCountUnit, setEditCountUnit] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isSavingProgress, setIsSavingProgress] = useState(false);
 
-  // --- LOGIC: Check if Goal is Already Completed ---
   const targetVal = resolution
     ? resolution.trackingType === "time_based"
       ? (resolution.targetTime || 0) * 60
       : resolution.targetCount || 1
     : 1;
-
   const isAlreadyCompleted = initialValue >= targetVal;
 
-  // Reset tab when opening
   useEffect(() => {
     if (visible && resolution) {
       setActiveTab("log");
-      // Populate Edit State
       setEditTitle(resolution.title);
       setEditFrequency(resolution.frequencyType);
       setEditCustomDays(resolution.customDays || []);
       setEditTrackingType(resolution.trackingType);
       setEditCountUnit(resolution.countUnit || "Times");
-
-      if (resolution.trackingType === "time_based") {
-        setEditTargetValue(String(resolution.targetTime || 30));
-      } else if (resolution.trackingType === "count_based") {
-        setEditTargetValue(String(resolution.targetCount || 1));
-      } else {
-        setEditTargetValue("1");
-      }
+      if (resolution.trackingType === "time_based") setEditTargetValue(String(resolution.targetTime || 30));
+      else if (resolution.trackingType === "count_based") setEditTargetValue(String(resolution.targetCount || 1));
+      else setEditTargetValue("1");
     }
   }, [visible, resolution]);
 
@@ -343,16 +362,13 @@ export const TrackingModal = ({
   }, [visible, resolution, initialValue]);
 
   const stopTimer = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
     setIsTimerRunning(false);
   };
 
   const toggleTimer = () => {
     if (readOnly) return;
-
     if (isTimerRunning) {
       stopTimer();
     } else {
@@ -360,11 +376,7 @@ export const TrackingModal = ({
       timerRef.current = setInterval(() => {
         setSeconds((prev) => {
           const next = prev + 1;
-          if (
-            resolution &&
-            resolution.targetTime &&
-            next >= resolution.targetTime * 60
-          ) {
+          if (resolution && resolution.targetTime && next >= resolution.targetTime * 60) {
             stopTimer();
             return resolution.targetTime * 60;
           }
@@ -375,53 +387,42 @@ export const TrackingModal = ({
   };
 
   const handleSaveProgress = async () => {
-    if (readOnly || !resolution) return;
+    if (readOnly || !resolution || isSavingProgress) return;
+    setIsSavingProgress(true);
     try {
-      const finalValue =
-        resolution.trackingType === "time_based" ? seconds : countValue;
-
+      const finalValue = resolution.trackingType === "time_based" ? seconds : countValue;
       if (isGuest) {
         await logGuestProgress(resolution._id, new Date().toISOString().split("T")[0], finalValue);
         onClose();
         return;
       }
-
       const result = await logProgress({
         userResolutionId: resolution._id as Id<"userResolutions">,
         date: new Date().toISOString().split("T")[0],
         value: finalValue,
       });
-
       onClose();
-
       if (result && result.newDailyXp > 0) {
-        setTimeout(() => {
-          onLevelUp(resolution.categoryKey, result.totalCategoryXp, currentCategoryXp);
-        }, 300);
+        setTimeout(() => onLevelUp(resolution.categoryKey, result.totalCategoryXp, currentCategoryXp), 300);
       }
     } catch (e) {
       Alert.alert("Error", "Failed to save progress");
+    } finally {
+      setIsSavingProgress(false);
     }
   };
 
   const toggleCustomDay = (day: number) => {
-    setEditCustomDays((prev) =>
-      prev.includes(day)
-        ? prev.filter((d) => d !== day)
-        : [...prev, day].sort(),
-    );
+    setEditCustomDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()));
   };
 
   const handleEditSave = async () => {
-    if (!resolution) return;
-    if (!editTitle.trim()) {
+    if (!resolution || !editTitle.trim()) {
       Alert.alert("Required", "Please enter a title");
       return;
     }
-
     setIsSavingEdit(true);
     try {
-      // Calculate final days
       let finalDays: number[] = [];
       if (editFrequency === "daily") finalDays = [0, 1, 2, 3, 4, 5, 6];
       else if (editFrequency === "weekdays") finalDays = [1, 2, 3, 4, 5];
@@ -434,29 +435,19 @@ export const TrackingModal = ({
         frequencyType: editFrequency,
         customDays: finalDays,
         trackingType: editTrackingType,
-        countUnit:
-          editTrackingType === "count_based" ? editCountUnit : undefined,
+        countUnit: editTrackingType === "count_based" ? editCountUnit : undefined,
       };
-
-      // Handle Targets
       const numVal = parseInt(editTargetValue, 10);
-      if (
-        (editTrackingType === "count_based" ||
-          editTrackingType === "time_based") &&
-        !isNaN(numVal) &&
-        numVal > 0
-      ) {
+      if ((editTrackingType === "count_based" || editTrackingType === "time_based") && !isNaN(numVal) && numVal > 0) {
         if (editTrackingType === "count_based") updates.targetCount = numVal;
         if (editTrackingType === "time_based") updates.targetTime = numVal;
       }
-
       if (isGuest) {
         Alert.alert("Guest Mode", "Editing is not supported in guest mode.");
         return;
       }
-
       await editResolution(updates);
-      Alert.alert("Success", "Goal updated successfully");
+      Alert.alert("Success", "Goal updated!");
       onClose();
     } catch (e) {
       Alert.alert("Error", "Failed to update goal");
@@ -467,227 +458,102 @@ export const TrackingModal = ({
 
   const handleDelete = () => {
     if (!resolution) return;
-    Alert.alert(
-      "Delete Goal",
-      "Are you sure you want to delete this goal? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              if (isGuest) {
-                Alert.alert("Guest Mode", "Deleting is not supported in guest mode.");
-                return;
-              }
-              await deleteResolution({
-                id: resolution._id as Id<"userResolutions">,
-              });
-              onClose();
-            } catch (e) {
-              Alert.alert("Error", "Failed to delete goal");
+    Alert.alert("Delete Goal", "Are you sure? This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            if (isGuest) {
+              Alert.alert("Guest Mode", "Deleting is not supported in guest mode.");
+              return;
             }
-          },
+            await deleteResolution({ id: resolution._id as Id<"userResolutions"> });
+            onClose();
+          } catch (e) {
+            Alert.alert("Error", "Failed to delete goal");
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
-
-  // Helper for Section Headers in Edit Mode
-  const EditSectionHeader = ({ title, icon }: { title: string; icon: any }) => (
-    <View className="flex-row items-center gap-2 mb-3 mt-6">
-      <Ionicons name={icon} size={14} color="white" style={{ opacity: 0.5 }} />
-      <Text className="text-white/50 font-generalsans-bold text-[9px] uppercase tracking-[-0.1px]">
-        {title}
-      </Text>
-    </View>
-  );
 
   if (!resolution) return null;
 
   return (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={visible}
-      onRequestClose={onClose}
-    >
-      <View style={StyleSheet.absoluteFill}>
-        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
-          onPress={onClose}
-          activeOpacity={1}
-        />
-      </View>
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+      {/* Backdrop */}
+      <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose}>
+        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+        <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" }} />
+      </TouchableOpacity>
 
+      {/* Sheet */}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{
-          position: "absolute",
-          bottom: 10,
-          left: 5,
-          right: 5,
-          height: "85%",
-        }}
+        style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: SCREEN_HEIGHT * 0.88 }}
       >
-        <Animated.View
-          entering={FadeInDown.duration(450).easing(Easing.out(Easing.cubic))}
-          style={{
-            flex: 1,
-            backgroundColor:
-              Platform.OS === "android" ? "#3A7AFE" : "transparent",
-            borderRadius: 40,
-            overflow: "hidden",
-          }}
-        >
-          {Platform.OS === "ios" && (
-            <GlassView
-              style={{
-                ...StyleSheet.absoluteFillObject,
-                borderRadius: 40,
-                overflow: "hidden",
-              }}
-              glassEffectStyle="regular"
-              tintColor="#3A7AFE"
-            />
-          )}
-
-          {/* --- HEADER --- */}
-          <View className="z-20 pt-8 pb-4">
-            <View className="px-6 flex-row justify-between items-center mb-4">
-              {/* Tab Switcher */}
-              <View className="flex-row bg-white/10 rounded-full p-1 border border-white/10">
-                <TouchableOpacity
-                  onPress={() => setActiveTab("log")}
-                  className={`px-4 py-1.5 rounded-full ${activeTab === "log" ? "bg-white/20" : "bg-transparent"}`}
-                >
-                  <Text
-                    className={`text-[12px] font-generalsans-bold ${activeTab === "log" ? "text-white" : "text-white/50"}`}
-                  >
-                    Log
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setActiveTab("streak")}
-                  className={`px-4 py-1.5 rounded-full ${activeTab === "streak" ? "bg-white/20" : "bg-transparent"}`}
-                >
-                  <Text
-                    className={`text-[12px] font-generalsans-bold ${activeTab === "streak" ? "text-white" : "text-white/50"}`}
-                  >
-                    Streak
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setActiveTab("edit")}
-                  className={`px-4 py-1.5 rounded-full ${activeTab === "edit" ? "bg-white/20" : "bg-transparent"}`}
-                >
-                  <Text
-                    className={`text-[12px] font-generalsans-bold ${activeTab === "edit" ? "text-white" : "text-white/50"}`}
-                  >
-                    Edit
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Close Button */}
-              <TouchableOpacity
-                onPress={onClose}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: "rgba(255,255,255,0.1)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.15)",
-                }}
-              >
-                <Ionicons name="close" size={20} color="white" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Title Area (Hidden in Edit mode) */}
-            {activeTab !== "edit" && (
-              <View className="px-6 mt-1 items-center">
-                <Text
-                  numberOfLines={1}
-                  className="text-white font-generalsans-bold text-3xl text-center leading-9"
-                >
-                  {resolution.title}
-                </Text>
-              </View>
-            )}
+        <Animated.View entering={FadeInDown.duration(300)} style={styles.sheet}>
+          {/* Handle */}
+          <View style={styles.handleContainer}>
+            <View style={styles.handle} />
           </View>
 
-          {/* --- CONTENT BODY --- */}
-          <View className="flex-1 px-6">
-            {/* 1. LOGGING VIEW */}
-            {activeTab === "log" && (
-              <Animated.View
-                entering={FadeInDown}
-                exiting={FadeOutLeft}
-                layout={LinearTransition.duration(200)}
-                style={{ flex: 1, justifyContent: "center" }}
+          {/* Tab Switcher */}
+          <View style={styles.tabBar}>
+            {[
+              { key: "log", label: "Log", icon: "checkmark-circle" },
+              { key: "streak", label: "Streak", icon: "flame" },
+              { key: "edit", label: "Edit", icon: "settings" },
+            ].map((tab) => (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key as any)}
+                style={[styles.tab, activeTab === tab.key && styles.tabActive]}
               >
+                <Ionicons name={tab.icon as any} size={18} color={activeTab === tab.key ? "#FFF" : TEXT_SECONDARY} />
+                <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>{tab.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Title */}
+          {activeTab !== "edit" && (
+            <Text numberOfLines={1} style={styles.title}>
+              {resolution.title}
+            </Text>
+          )}
+
+          {/* Content */}
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+            {/* LOG TAB */}
+            {activeTab === "log" && (
+              <Animated.View entering={FadeIn} style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 400 }}>
                 {readOnly && (
-                  <View className="bg-orange-500/20 border border-orange-500/30 p-3 rounded-2xl mb-8 flex-row items-center justify-center">
-                    <Ionicons
-                      name="calendar-outline"
-                      size={16}
-                      color="#fb923c"
-                    />
-                    <Text className="text-orange-200 ml-2 font-generalsans-semibold text-xs uppercase tracking-wide">
-                      Scheduled for another day
-                    </Text>
+                  <View style={styles.readOnlyBadge}>
+                    <Ionicons name="calendar-outline" size={14} color={ACCENT_ORANGE} />
+                    <Text style={styles.readOnlyText}>Scheduled for another day</Text>
                   </View>
                 )}
 
                 {resolution.trackingType === "yes_no" && (
-                  <View className="items-center">
+                  <View style={{ alignItems: "center" }}>
                     <TouchableOpacity
                       disabled={readOnly}
                       onPress={() => setCountValue(countValue === 0 ? 1 : 0)}
-                      activeOpacity={0.8}
-                      className={`w-40 h-40 rounded-[40px] items-center justify-center border-4 shadow-2xl ${countValue > 0
-                        ? "bg-[#22c55e] border-[#4ade80]"
-                        : "bg-white/10 border-white/20"
-                        }`}
-                      style={{
-                        shadowColor: countValue > 0 ? "#22c55e" : "#000",
-                        shadowOpacity: countValue > 0 ? 0.6 : 0.2,
-                        shadowRadius: 30,
-                        elevation: 10,
-                        opacity: readOnly ? 0.5 : 1,
-                      }}
+                      style={[styles.checkButton, countValue > 0 && styles.checkButtonDone]}
                     >
-                      <Ionicons
-                        name="checkmark"
-                        size={80}
-                        color={
-                          countValue > 0 ? "white" : "rgba(255,255,255,0.2)"
-                        }
-                      />
+                      <Ionicons name="checkmark" size={72} color={countValue > 0 ? "#FFF" : "#E5E7EB"} />
                     </TouchableOpacity>
-                    <Text className="text-white/50 font-generalsans-medium text-sm mt-4 uppercase tracking-wider shadow-sm shadow-white">
-                      {readOnly
-                        ? "View Only"
-                        : countValue > 0
-                          ? "Completed"
-                          : "Tap to complete"}
+                    <Text style={styles.checkLabel}>
+                      {readOnly ? "View Only" : countValue > 0 ? "Completed! 🎉" : "Tap to complete"}
                     </Text>
                   </View>
                 )}
 
                 {resolution.trackingType === "count_based" && (
-                  <CountCircles
-                    initialCount={countValue}
-                    target={resolution.targetCount || 5}
-                    onChange={setCountValue}
-                    disabled={readOnly}
-                  />
+                  <CountCircles initialCount={countValue} target={resolution.targetCount || 5} onChange={setCountValue} disabled={readOnly} />
                 )}
 
                 {resolution.trackingType === "time_based" && (
@@ -703,311 +569,100 @@ export const TrackingModal = ({
               </Animated.View>
             )}
 
-            {/* 2. STREAK VIEW */}
+            {/* STREAK TAB */}
             {activeTab === "streak" && (
-              <Animated.View
-                entering={FadeInRight}
-                layout={LinearTransition.duration(200)}
-                style={{
-                  flex: 1,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <View className="w-24 h-24 rounded-full bg-[#FF9C00]/30 items-center justify-center border border-[#FF9C00]/20 mb-6 shadow-2xl shadow-[#FF9C00]">
-                  <HugeiconsIcon
-                    icon={Fire02Icon}
-                    size={48}
-                    color="#FF9C00"
-                    variant="solid"
-                  />
+              <Animated.View entering={FadeIn} style={{ alignItems: "center" }}>
+                <View style={styles.streakCircle}>
+                  <Text style={{ fontSize: 40 }}>🔥</Text>
                 </View>
-                <Text className="text-white font-generalsans-bold text-6xl mb-1 shadow-sm shadow-white">
-                  {resolution.currentStreak || 0}
-                </Text>
-                <Text className="text-white/50 font-generalsans-medium text-sm uppercase tracking-tight mb-10">
-                  Current Streak
-                </Text>
-                <View className="w-full">
-                  <MonthHeatmap
-                    streakCount={resolution.currentStreak || 0}
-                    lastCompletedDate={resolution.lastCompletedDate}
-                  />
-                </View>
+                <Text style={styles.streakNumber}>{resolution.currentStreak || 0}</Text>
+                <Text style={styles.streakLabel}>Day Streak</Text>
+                <MonthHeatmap streakCount={resolution.currentStreak || 0} lastCompletedDate={resolution.lastCompletedDate} />
               </Animated.View>
             )}
 
-            {/* 3. EDIT VIEW */}
+            {/* EDIT TAB */}
             {activeTab === "edit" && (
-              <Animated.View
-                entering={FadeIn.duration(300)}
-                exiting={FadeOut.duration(200)}
-                style={{ flex: 1, paddingTop: 0 }}
-              >
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingBottom: 100 }}
-                >
-                  {/* Title Input */}
-                  <EditSectionHeader title="Goal Title" icon="pencil" />
-                  <GlassView
-                    glassEffectStyle="regular"
-                    tintColor="#3A7AFE"
-                    style={{
-                      borderRadius: 20,
-                      height: 56,
-                      borderWidth: 1,
-                      borderColor: "rgba(255,255,255,0.1)",
-                      overflow: "hidden",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <TextInput
-                      value={editTitle}
-                      onChangeText={setEditTitle}
-                      style={{
-                        color: "white",
-                        fontSize: 15,
-                        fontFamily: "GeneralSans-Medium",
-                        paddingHorizontal: 16,
-                        height: "100%",
-                      }}
-                      placeholderTextColor="rgba(255,255,255,0.4)"
-                    />
-                  </GlassView>
+              <Animated.View entering={FadeIn}>
+                <Text style={styles.sectionLabel}>Goal Title</Text>
+                <View style={styles.inputContainer}>
+                  <TextInput value={editTitle} onChangeText={setEditTitle} style={styles.input} placeholder="Goal name..." placeholderTextColor={TEXT_SECONDARY} />
+                </View>
 
-                  {/* Frequency */}
-                  <EditSectionHeader title="Frequency" icon="calendar" />
-                  <View className="flex-row gap-2">
-                    {["daily", "weekdays", "weekends", "custom"].map((f) => (
-                      <TouchableOpacity
-                        key={f}
-                        onPress={() => setEditFrequency(f)}
-                        className="flex-1"
-                      >
-                        <GlassView
-                          isInteractive
-                          glassEffectStyle="regular"
-                          tintColor={
-                            editFrequency === f ? "#FFFFFF" : "#3A7AFE"
-                          }
-                          style={{
-                            borderRadius: 16,
-                            padding: 14,
-                            alignItems: "center",
-                            overflow: "hidden",
-                          }}
-                        >
-                          <Text
-                            className={`font-generalsans-semibold capitalize text-[10px] ${editFrequency === f ? "text-[#3A7AFE]" : "text-white"}`}
-                          >
-                            {f}
-                          </Text>
-                        </GlassView>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Frequency</Text>
+                <View style={styles.frequencyRow}>
+                  {["daily", "weekdays", "weekends", "custom"].map((f) => (
+                    <TouchableOpacity key={f} onPress={() => setEditFrequency(f)} style={[styles.freqPill, editFrequency === f && styles.freqPillActive]}>
+                      <Text style={[styles.freqText, editFrequency === f && styles.freqTextActive]}>{f.charAt(0).toUpperCase() + f.slice(1)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {editFrequency === "custom" && <DaySelector selectedDays={editCustomDays} toggleDay={toggleCustomDay} setCustomDays={setEditCustomDays} />}
 
-                  {editFrequency === "custom" && (
-                    <Animated.View entering={FadeInUp}>
-                      <AdvancedDaySelector
-                        selectedDays={editCustomDays}
-                        toggleDay={toggleCustomDay}
-                        setCustomDays={setEditCustomDays}
-                      />
-                    </Animated.View>
-                  )}
+                <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Tracking</Text>
+                <View style={{ gap: 10 }}>
+                  {[
+                    { key: "yes_no", label: "Check-in", icon: "checkmark-circle" },
+                    { key: "count_based", label: "Count", icon: "add-circle" },
+                    { key: "time_based", label: "Timer", icon: "time" },
+                  ].map((t) => (
+                    <TouchableOpacity key={t.key} onPress={() => setEditTrackingType(t.key)} style={[styles.trackOption, editTrackingType === t.key && styles.trackOptionActive]}>
+                      <Ionicons name={t.icon as any} size={20} color={editTrackingType === t.key ? ACCENT_ORANGE : TEXT_SECONDARY} />
+                      <Text style={[styles.trackOptionText, editTrackingType === t.key && { color: ACCENT_ORANGE }]}>{t.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-                  {/* Tracking Method */}
-                  <EditSectionHeader
-                    title="Tracking Method"
-                    icon="stats-chart"
-                  />
-                  <View className="gap-3">
-                    {[
-                      {
-                        key: "yes_no",
-                        label: "Simple Check-in",
-                        icon: "checkmark-circle",
-                      },
-                      {
-                        key: "count_based",
-                        label: "Numerical Goal",
-                        icon: "add-circle",
-                      },
-                      {
-                        key: "time_based",
-                        label: "Timer / Duration",
-                        icon: "time",
-                      },
-                    ].map((t) => (
-                      <TouchableOpacity
-                        key={t.key}
-                        onPress={() => setEditTrackingType(t.key)}
-                      >
-                        <GlassView
-                          isInteractive
-                          glassEffectStyle="regular"
-                          tintColor={
-                            editTrackingType === t.key ? "#FFFFFF" : "#3A7AFE"
-                          }
-                          style={{
-                            borderRadius: 18,
-                            padding: 18,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 12,
-                            overflow: "hidden",
-                          }}
-                        >
-                          <Ionicons
-                            name={t.icon as any}
-                            size={18}
-                            color={
-                              editTrackingType === t.key ? "#3A7AFE" : "white"
-                            }
-                          />
-                          <Text
-                            className={`font-generalsans-bold text-sm tracking-tight ${editTrackingType === t.key ? "text-[#3A7AFE]" : "text-white"}`}
-                          >
-                            {t.label}
-                          </Text>
-                        </GlassView>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  {/* Target Inputs */}
-                  {editTrackingType !== "yes_no" && (
-                    <Animated.View
-                      entering={FadeInUp}
-                      className="mt-6 flex-row gap-4"
-                    >
-                      <View className="flex-1">
-                        <Text className="text-white/40 font-generalsans-bold text-[9px] uppercase mb-2">
-                          Target
-                        </Text>
-                        <GlassView
-                          isInteractive
-                          glassEffectStyle="regular"
-                          tintColor="#3A7AFE"
-                          style={{
-                            borderRadius: 16,
-                            height: 54,
-                            overflow: "hidden",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <TextInput
-                            keyboardType="numeric"
-                            selectionColor="white"
-                            cursorColor="white"
-                            value={editTargetValue}
-                            onChangeText={setEditTargetValue}
-                            style={{
-                              color: "white",
-                              fontSize: 18,
-                              fontFamily: "GeneralSans-Bold",
-                              textAlign: "center",
-                              height: "100%",
-                            }}
-                          />
-                        </GlassView>
+                {editTrackingType !== "yes_no" && (
+                  <Animated.View entering={FadeInUp} style={{ flexDirection: "row", gap: 12, marginTop: 20 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.miniLabel}>{editTrackingType === "time_based" ? "Minutes" : "Target"}</Text>
+                      <View style={styles.inputContainer}>
+                        <TextInput keyboardType="numeric" value={editTargetValue} onChangeText={setEditTargetValue} style={[styles.input, { textAlign: "center" }]} />
                       </View>
-                      {editTrackingType === "count_based" && (
-                        <View className="flex-1">
-                          <Text className="text-white/40 font-generalsans-bold text-[9px] uppercase mb-2">
-                            Unit
-                          </Text>
-                          <GlassView
-                            isInteractive
-                            glassEffectStyle="regular"
-                            tintColor="#3A7AFE"
-                            style={{
-                              borderRadius: 16,
-                              height: 54,
-                              overflow: "hidden",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <TextInput
-                              placeholder="Unit..."
-                              placeholderTextColor="rgba(255,255,255,0.3)"
-                              selectionColor="white"
-                              cursorColor="white"
-                              value={editCountUnit}
-                              onChangeText={setEditCountUnit}
-                              style={{
-                                color: "white",
-                                fontSize: 14,
-                                fontFamily: "GeneralSans-Medium",
-                                textAlign: "center",
-                                height: "100%",
-                              }}
-                            />
-                          </GlassView>
+                    </View>
+                    {editTrackingType === "count_based" && (
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.miniLabel}>Unit</Text>
+                        <View style={styles.inputContainer}>
+                          <TextInput placeholder="cups" placeholderTextColor={TEXT_SECONDARY} value={editCountUnit} onChangeText={setEditCountUnit} style={[styles.input, { textAlign: "center" }]} />
                         </View>
-                      )}
-                    </Animated.View>
-                  )}
+                      </View>
+                    )}
+                  </Animated.View>
+                )}
 
-                  {/* Action Buttons */}
-                  <View className="mt-8 gap-3">
-                    <TouchableOpacity
-                      onPress={handleEditSave}
-                      disabled={isSavingEdit}
-                      className="w-full py-4 bg-white rounded-2xl items-center shadow-lg"
-                    >
-                      {isSavingEdit ? (
-                        <ActivityIndicator color="#3A7AFE" />
-                      ) : (
-                        <Text className="text-[#3A7AFE] font-generalsans-bold text-base">
-                          Save Changes
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleDelete}
-                      className="w-full py-4 bg-red-500/20 border border-red-500/30 rounded-2xl items-center"
-                    >
-                      <Text className="text-red-300 font-generalsans-bold text-base">
-                        Delete Goal
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </ScrollView>
+                <View style={{ marginTop: 32, gap: 12 }}>
+                  <TouchableOpacity onPress={handleEditSave} disabled={isSavingEdit} style={styles.saveBtn}>
+                    {isSavingEdit ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
+                    <Text style={styles.deleteBtnText}>Delete Goal</Text>
+                  </TouchableOpacity>
+                </View>
               </Animated.View>
             )}
-          </View>
+          </ScrollView>
 
-          {/* --- FOOTER ACTIONS (Only for Log/Streak) --- */}
+          {/* Footer for Log/Streak */}
           {(activeTab === "log" || activeTab === "streak") && (
-            <View className="px-6 pb-8 pt-4 flex-row w-full gap-4">
-              <TouchableOpacity
-                onPress={onClose}
-                className="flex-1 py-4 bg-white/10 rounded-2xl items-center border border-white/5"
-                activeOpacity={0.7}
-              >
-                <Text className="text-white/70 font-generalsans-bold">
-                  {readOnly || activeTab === "streak" ? "Close" : "Cancel"}
-                </Text>
+            <View style={styles.footer}>
+              <TouchableOpacity onPress={onClose} style={styles.cancelBtn}>
+                <Text style={styles.cancelBtnText}>{readOnly || activeTab === "streak" ? "Close" : "Cancel"}</Text>
               </TouchableOpacity>
-
               {!readOnly && activeTab === "log" && (
                 <TouchableOpacity
                   onPress={handleSaveProgress}
-                  disabled={isAlreadyCompleted}
-                  activeOpacity={0.8}
-                  className={`flex-1 py-4 rounded-2xl items-center shadow-sm ${isAlreadyCompleted ? "bg-white/10 opacity-50" : "bg-white"
-                    }`}
+                  disabled={isAlreadyCompleted || isSavingProgress}
+                  style={[styles.saveProgressBtn, (isAlreadyCompleted || isSavingProgress) && { backgroundColor: isSavingProgress ? ACCENT_ORANGE : "#E5E7EB" }]}
                 >
-                  <Text
-                    className={`font-generalsans-bold text-base ${isAlreadyCompleted ? "text-white/50" : "text-[#3A7AFE]"
-                      }`}
-                  >
-                    {isAlreadyCompleted ? "Completed" : "Save Progress"}
-                  </Text>
+                  {isSavingProgress ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <Text style={[styles.saveProgressText, isAlreadyCompleted && { color: TEXT_SECONDARY }]}>
+                      {isAlreadyCompleted ? "Completed ✓" : "Save Progress"}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               )}
             </View>
@@ -1018,249 +673,73 @@ export const TrackingModal = ({
   );
 };
 
-// --- SUB-COMPONENT: Glassy Timer ---
-const ModernTimer = ({
-  seconds,
-  targetMinutes,
-  isRunning,
-  onToggle,
-  onAddFive,
-  disabled,
-}: {
-  seconds: number;
-  targetMinutes: number;
-  isRunning: boolean;
-  onToggle: () => void;
-  onAddFive: () => void;
-  disabled: boolean;
-}) => {
-  const size = 200;
-  const strokeWidth = 14;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
+const styles = StyleSheet.create({
+  sheet: {
+    flex: 1,
+    backgroundColor: BG_COLOR,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    overflow: "hidden",
+  },
+  handleContainer: { alignItems: "center", paddingVertical: 12 },
+  handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: "#D1D5DB" },
+  tabBar: { flexDirection: "row", paddingHorizontal: 20, gap: 8, marginBottom: 16 },
+  tab: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    backgroundColor: "#F3F4F6",
+  },
+  tabActive: { backgroundColor: TEXT_PRIMARY },
+  tabText: { fontFamily: "Nunito-Bold", fontSize: 13, color: TEXT_SECONDARY },
+  tabTextActive: { color: "#FFF" },
+  title: { fontFamily: "Nunito-Bold", fontSize: 24, color: TEXT_PRIMARY, textAlign: "center", marginBottom: 16 },
+  sectionLabel: { fontFamily: "Nunito-Bold", fontSize: 13, color: TEXT_PRIMARY, marginBottom: 10 },
+  miniLabel: { fontFamily: "Nunito-SemiBold", fontSize: 12, color: TEXT_SECONDARY, marginBottom: 6 },
 
-  const targetSeconds = (targetMinutes || 1) * 60;
-  const progress = Math.min(seconds / targetSeconds, 1);
-  const isGoalMet = seconds >= targetSeconds;
+  inputContainer: { backgroundColor: "#FFF", borderRadius: 999, borderWidth: 2, borderColor: "#E5E7EB" },
+  input: { fontFamily: "Nunito-Medium", fontSize: 16, color: TEXT_PRIMARY, paddingHorizontal: 20, paddingVertical: 16 },
 
-  const animatedProps = useAnimatedProps(() => {
-    return {
-      strokeDashoffset: withTiming(circumference * (1 - progress), {
-        duration: DURATION_SLOW,
-        easing: SMOOTH_EASING,
-      }),
-    };
-  });
+  frequencyRow: { flexDirection: "row", gap: 8 },
+  freqPill: { flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 999, backgroundColor: "#F3F4F6" },
+  freqPillActive: { backgroundColor: TEXT_PRIMARY },
+  freqText: { fontFamily: "Nunito-Bold", fontSize: 12, color: TEXT_SECONDARY },
+  freqTextActive: { color: "#FFF" },
 
-  return (
-    <View className="items-center justify-center my-2">
-      <Animated.View
-        entering={FadeInDown.duration(DURATION_SLOW).easing(SMOOTH_EASING)}
-        style={{
-          width: size,
-          height: size,
-          alignItems: "center",
-          justifyContent: "center",
-          opacity: disabled ? 0.7 : 1,
-        }}
-      >
-        <Svg width={size} height={size} style={{ position: "absolute" }}>
-          <Defs>
-            <LinearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor="#3A7AFE" stopOpacity="1" />
-              <Stop offset="1" stopColor="#60A5FA" stopOpacity="1" />
-            </LinearGradient>
-            <LinearGradient id="successGrad" x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor="#22c55e" stopOpacity="1" />
-              <Stop offset="1" stopColor="#4ade80" stopOpacity="1" />
-            </LinearGradient>
-          </Defs>
+  daysRow: { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#FFF", borderRadius: 999, padding: 6, borderWidth: 2, borderColor: "#E5E7EB" },
+  dayCircle: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  dayText: { fontFamily: "Nunito-Bold", fontSize: 13, color: TEXT_SECONDARY },
 
-          <Circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke="rgba(255,255,255,0.1)"
-            strokeWidth={strokeWidth}
-            fill="none"
-          />
+  trackOption: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 999, padding: 16, paddingHorizontal: 20, borderWidth: 2, borderColor: "#E5E7EB" },
+  trackOptionActive: { borderColor: ACCENT_ORANGE, backgroundColor: "#FFF7ED" },
+  trackOptionText: { fontFamily: "Nunito-Bold", fontSize: 14, color: TEXT_PRIMARY },
 
-          <AnimatedCircle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke={isGoalMet ? "url(#successGrad)" : "url(#grad)"}
-            strokeWidth={strokeWidth}
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            animatedProps={animatedProps}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            opacity={disabled ? 0.3 : 1}
-          />
-        </Svg>
+  readOnlyBadge: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF7ED", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 999, marginBottom: 24 },
+  readOnlyText: { fontFamily: "Nunito-SemiBold", fontSize: 12, color: ACCENT_ORANGE },
 
-        <View className="items-center">
-          <Text className="font-generalsans-bold text-5xl text-white tracking-wider font-variant-numeric tabular-nums shadow-sm shadow-white">
-            {formatTime(seconds)}
-          </Text>
-          <Text className="text-white/40 font-generalsans-medium text-xs uppercase tracking-widest mt-1">
-            Goal: {targetMinutes} min
-          </Text>
-        </View>
-      </Animated.View>
+  checkButton: { width: 140, height: 140, borderRadius: 70, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", borderWidth: 4, borderColor: "#E5E7EB" },
+  checkButtonDone: { backgroundColor: SUCCESS_GREEN, borderColor: SUCCESS_GREEN },
+  checkLabel: { fontFamily: "Nunito-SemiBold", fontSize: 14, color: TEXT_SECONDARY, marginTop: 16 },
 
-      <View className="flex-row items-center gap-6 mt-6">
-        <TouchableOpacity
-          onPress={onToggle}
-          disabled={isGoalMet || disabled}
-          activeOpacity={0.8}
-          className={`w-14 h-14 rounded-full items-center justify-center border ${disabled
-            ? "bg-white/5 border-white/5"
-            : isGoalMet
-              ? "bg-[#22c55e] border-[#4ade80]"
-              : isRunning
-                ? "bg-red-500 border-red-400"
-                : "bg-white border-white"
-            }`}
-          style={{
-            shadowColor: "#121212",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 6,
-          }}
-        >
-          <Ionicons
-            name={isGoalMet ? "checkmark" : isRunning ? "pause" : "play"}
-            size={28}
-            color={
-              disabled
-                ? "rgba(255,255,255,0.2)"
-                : isGoalMet || isRunning
-                  ? "white"
-                  : "#3A7AFE"
-            }
-            style={{ marginLeft: isRunning || isGoalMet ? 0 : 4 }}
-          />
-        </TouchableOpacity>
+  streakCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: "#FFF7ED", alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  streakNumber: { fontFamily: "Nunito-Bold", fontSize: 64, color: TEXT_PRIMARY },
+  streakLabel: { fontFamily: "Nunito-Medium", fontSize: 14, color: TEXT_SECONDARY, marginBottom: 24 },
 
-        <TouchableOpacity
-          onPress={onAddFive}
-          disabled={isGoalMet || disabled}
-          activeOpacity={0.8}
-          className={`w-14 h-14 rounded-full items-center justify-center border ${isGoalMet || disabled
-            ? "bg-white/5 border-white/5 opacity-50"
-            : "bg-white/10 border-white/20"
-            }`}
-        >
-          <Text
-            className={`font-generalsans-bold text-xs ${isGoalMet || disabled ? "text-white/30" : "text-white"
-              }`}
-          >
-            +5m
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
+  timerBtn: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  timerBtnSecondary: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
+  counterBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" },
 
-// --- SUB-COMPONENT: Glassy Counter ---
-const CountCircles = ({
-  initialCount,
-  target,
-  onChange,
-  disabled,
-}: {
-  initialCount: number;
-  target: number;
-  onChange: (val: number) => void;
-  disabled: boolean;
-}) => {
-  const [count, setCount] = useState(initialCount);
+  footer: { flexDirection: "row", gap: 12, padding: 20, paddingBottom: 32, backgroundColor: BG_COLOR },
+  cancelBtn: { flex: 1, alignItems: "center", paddingVertical: 16, backgroundColor: "#F3F4F6", borderRadius: 999 },
+  cancelBtnText: { fontFamily: "Nunito-Bold", fontSize: 15, color: TEXT_SECONDARY },
+  saveProgressBtn: { flex: 1, alignItems: "center", paddingVertical: 16, backgroundColor: ACCENT_ORANGE, borderRadius: 999 },
+  saveProgressText: { fontFamily: "Nunito-Bold", fontSize: 15, color: "#FFF" },
 
-  useEffect(() => {
-    setCount(initialCount);
-  }, [initialCount]);
-
-  const increment = () => {
-    if (disabled || count >= target) return;
-    const newCount = count + 1;
-    setCount(newCount);
-    onChange(newCount);
-  };
-
-  const decrement = () => {
-    if (disabled || count <= 0) return;
-    const newCount = count - 1;
-    setCount(newCount);
-    onChange(newCount);
-  };
-
-  const maxTarget = target || 5;
-
-  return (
-    <View className="items-center justify-center my-4">
-      <Animated.View
-        entering={FadeInDown.duration(DURATION_SLOW).easing(SMOOTH_EASING)}
-        className="relative items-center justify-center mb-8"
-        style={{ opacity: disabled ? 0.7 : 1 }}
-      >
-        <Animated.Text
-          className={`font-generalsans-bold text-[100px] leading-[100px] shadow-sm shadow-white ${disabled ? "text-white/20" : "text-white"
-            }`}
-        >
-          {count}
-        </Animated.Text>
-
-        <View className="flex-row items-center gap-1.5 mt-4">
-          {Array.from({ length: maxTarget }, (_, i) => (
-            <ProgressDot key={i} active={i < count} />
-          ))}
-        </View>
-
-        <Text className="text-white/40 font-generalsans-medium text-sm mt-3 uppercase tracking-widest">
-          Target: {maxTarget}
-        </Text>
-      </Animated.View>
-
-      <View className="flex-row items-center gap-10">
-        <TouchableOpacity
-          onPress={decrement}
-          disabled={disabled || count <= 0}
-          activeOpacity={0.7}
-          className={`w-16 h-16 rounded-full items-center justify-center border ${disabled || count <= 0
-            ? "bg-white/5 border-white/5"
-            : "bg-white/10 border-white/20"
-            }`}
-        >
-          <Ionicons
-            name="remove"
-            size={28}
-            color={disabled || count <= 0 ? "rgba(255,255,255,0.2)" : "white"}
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={increment}
-          disabled={disabled || count >= maxTarget}
-          activeOpacity={0.7}
-          className={`w-16 h-16 rounded-full items-center justify-center shadow-lg border ${disabled || count >= maxTarget
-            ? "bg-white/5 border-white/5"
-            : "bg-white border-white"
-            }`}
-        >
-          <Ionicons
-            name="add"
-            size={32}
-            color={
-              disabled || count >= maxTarget
-                ? "rgba(255,255,255,0.2)"
-                : "#3A7AFE"
-            }
-          />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
+  saveBtn: { alignItems: "center", paddingVertical: 16, backgroundColor: ACCENT_ORANGE, borderRadius: 999 },
+  saveBtnText: { fontFamily: "Nunito-Bold", fontSize: 15, color: "#FFF" },
+  deleteBtn: { alignItems: "center", paddingVertical: 16, backgroundColor: "#FEE2E2", borderRadius: 999 },
+  deleteBtnText: { fontFamily: "Nunito-Bold", fontSize: 15, color: "#EF4444" },
+});

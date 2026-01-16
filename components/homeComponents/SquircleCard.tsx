@@ -1,19 +1,44 @@
 import { Ionicons } from "@expo/vector-icons";
-import { GlassView } from "expo-glass-effect"; // <--- Import GlassView
 import {
-    Dimensions,
-    Platform,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import Animated, {
     Easing,
     FadeInDown,
-    FadeInUp,
     LinearTransition,
 } from "react-native-reanimated";
+
+// Theme Colors
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
+
+// Nice category emojis and colors
+const CATEGORY_STYLES: { [key: string]: { icon: string; bg: string } } = {
+    health: { icon: "💧", bg: "#E0F2FE" },
+    mind: { icon: "🧘", bg: "#F3E8FF" },
+    career: { icon: "💼", bg: "#EFF6FF" },
+    life: { icon: "🌟", bg: "#FEF3C7" },
+    fun: { icon: "🎮", bg: "#FCE7F3" },
+    fitness: { icon: "🏋️", bg: "#FCE7F3" },
+    mindfulness: { icon: "🧘‍♀️", bg: "#F3E8FF" },
+    productivity: { icon: "🚀", bg: "#ECFDF5" },
+    learning: { icon: "📖", bg: "#FEF3C7" },
+    social: { icon: "💬", bg: "#FEE2E2" },
+    creativity: { icon: "🎨", bg: "#FFF7ED" },
+    finance: { icon: "💰", bg: "#D1FAE5" },
+    sleep: { icon: "😴", bg: "#EDE9FE" },
+    nutrition: { icon: "🥗", bg: "#DCFCE7" },
+    hydration: { icon: "💦", bg: "#E0F2FE" },
+    exercise: { icon: "🏃‍♂️", bg: "#FECACA" },
+    meditation: { icon: "🧠", bg: "#F3E8FF" },
+    reading: { icon: "📚", bg: "#FEF9C3" },
+    writing: { icon: "✍️", bg: "#F1F5F9" },
+    default: { icon: "✨", bg: "#F3F4F6" },
+};
 
 type Resolution = {
     _id: string;
@@ -26,37 +51,18 @@ type Resolution = {
     targetTime?: number;
     customDays?: number[];
     daysPerWeek?: number;
+    currentStreak?: number;
 };
 
-// Smooth easing configuration
 const SMOOTH_EASING = Easing.bezier(0.4, 0.0, 0.2, 1);
-const DURATION_NORMAL = 300;
-const DURATION_SLOW = 400;
 
-const getScheduleLabel = (item: Resolution) => {
-    if (item.frequencyType === "daily") return "Daily";
-    if (item.frequencyType === "weekdays") return "Weekdays";
-    if (item.frequencyType === "weekends") return "Weekends";
-    if (item.frequencyType === "custom") return "Custom Days";
-    return "Scheduled";
-};
+const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const getTargetText = (item: Resolution) => {
-    if (item.trackingType === "yes_no") return "Check In";
-    if (item.trackingType === "time_based") return `${item.targetTime} mins`;
-    return `${item.targetCount} ${item.countUnit || "units"}`;
+    if (item.trackingType === "yes_no") return null;
+    if (item.trackingType === "time_based") return `${item.targetTime} min`;
+    return `${item.targetCount} ${item.countUnit || ""}`;
 };
-
-const CARD_COLORS = [
-    "#E0F2FE",
-    "#DCFCE7",
-    "#FAE8FF",
-    "#FFEDD5",
-    "#FFE4E6",
-    "#FEF9C3",
-];
-const INACTIVE_COLOR = "#F1F5F9";
-const SCREEN_WIDTH = Dimensions.get("window").width;
 
 const isTaskAvailableOnDate = (item: Resolution, date: Date) => {
     const day = date.getDay();
@@ -72,6 +78,23 @@ const isTaskAvailableOnDate = (item: Resolution, date: Date) => {
 const isTaskToday = (item: Resolution) =>
     isTaskAvailableOnDate(item, new Date());
 
+// Get schedule text for unavailable tasks
+const getScheduleText = (item: Resolution): string => {
+    if (item.frequencyType === "weekdays") return "Weekdays only";
+    if (item.frequencyType === "weekends") return "Weekends only";
+    if (item.frequencyType === "daily") return "Daily";
+    if (item.frequencyType === "custom" && item.customDays && item.customDays.length > 0) {
+        const dayLabels = item.customDays
+            .sort((a, b) => a - b)
+            .map(d => DAY_NAMES_SHORT[d]);
+        return dayLabels.join(" · ");
+    }
+    if (item.frequencyType === "x_days_per_week") {
+        return `${item.daysPerWeek || 3}x per week`;
+    }
+    return "Not scheduled";
+};
+
 export const SquircleCard = ({
     item,
     index,
@@ -80,204 +103,200 @@ export const SquircleCard = ({
     currentFilter,
 }: any) => {
     const isAvailableToday = isTaskToday(item);
-
-    // Determine base color
-    const baseColor = isAvailableToday
-        ? CARD_COLORS[index % CARD_COLORS.length]
-        : INACTIVE_COLOR;
-    const textColor = isAvailableToday ? "#1E293B" : "#64748B";
+    const categoryStyle = CATEGORY_STYLES[item.categoryKey?.toLowerCase()] || CATEGORY_STYLES.default;
+    const targetText = getTargetText(item);
+    const streak = item.currentStreak || 0;
+    const scheduleText = getScheduleText(item);
 
     return (
         <Animated.View
             key={`${item._id}-${currentFilter}`}
-            entering={FadeInDown.delay(index * 60)
-                .duration(DURATION_SLOW)
-                .easing(SMOOTH_EASING)}
-            layout={LinearTransition.duration(300)}
-            className="mb-4"
+            entering={FadeInDown.delay(index * 40).duration(300).easing(SMOOTH_EASING)}
+            layout={LinearTransition.duration(200)}
+            style={styles.wrapper}
         >
-            <TouchableOpacity
-                activeOpacity={0.8}
-                style={styles.cardShadow}
-                onPress={onPress}
-            >
-                {/* Main Visual Container
-                    - Handles Overflow (for glass clipping)
-                    - Handles Background (Android fallback)
-                    - Handles Border
-                */}
-                <View
-                    style={{
-                        overflow: "hidden", // Essential for GlassView
-                        minHeight: 220,
-                        // Android gets solid color, iOS gets transparent (to show glass)
-                        backgroundColor:
-                            Platform.OS === "android" ? baseColor : "transparent",
-                    }}
-                >
-                    {/* --- GLASS LAYER (iOS Only) --- */}
-                    {Platform.OS === "ios" && (
-                        <GlassView
-                            style={{
-                                ...StyleSheet.absoluteFillObject,
-                                borderRadius: 40,
-                                overflow: "hidden",
-                            }}
-                            glassEffectStyle="regular"
-                            tintColor={baseColor} // <--- Tint the glass with the card color
-                        />
-                    )}
-
-                    {/* --- CONTENT LAYER --- */}
-                    {/* We use a View here for padding so the glass stays edge-to-edge */}
-                    <View style={{ paddingVertical: 20, paddingHorizontal: 22, flex: 1 }}>
-                        {/* Header Row */}
-                        <View className="flex-row justify-between items-start mb-2">
-                            {/* Category Pill - Made semi-transparent white for glass feel */}
-                            <View className="bg-white/40 px-3 py-1.5 rounded-full border border-white/20">
-                                <Text className="text-[10px] font-generalsans-medium uppercase tracking-wider opacity-70">
-                                    {item.categoryKey}
-                                </Text>
-                            </View>
-
-                            <View className="flex-row items-center gap-2">
-                                <View className="bg-white/40 px-3 py-1.5 rounded-full flex-row items-center gap-1.5 border border-white/20">
-                                    <Ionicons
-                                        name={isAvailableToday ? "calendar" : "moon"}
-                                        size={11}
-                                        color="rgba(0,0,0,0.6)"
-                                    />
-                                    <Text className="text-[10px] font-generalsans-medium uppercase opacity-70">
-                                        {getScheduleLabel(item)}
-                                    </Text>
-                                </View>
-                                {isCompleted && isAvailableToday && (
-                                    <View className="bg-white px-2.5 py-1.5 rounded-full flex-row items-center shadow-sm">
-                                        <Ionicons
-                                            name="checkmark-circle"
-                                            size={14}
-                                            color="#10B981"
-                                        />
-                                        <Text className="text-emerald-600 text-[10px] font-generalsans-bold ml-1">
-                                            DONE
-                                        </Text>
-                                    </View>
-                                )}
-                            </View>
-                        </View>
-
-                        {/* Day Circles */}
-                        <DayCircles item={item} isInactive={!isAvailableToday} />
-
-                        {/* Title */}
-                        <Text
-                            style={{
-                                color: textColor,
-                                textShadowColor: "rgba(255,255,255,0.4)",
-                                textShadowOffset: { width: 0, height: 1 },
-                                textShadowRadius: 0,
-                            }}
-                            className="font-generalsans-bold text-[30px] leading-9 my-6"
-                            numberOfLines={2}
-                        >
-                            {item.title}
-                        </Text>
-
-                        {/* Footer */}
-                        <View className="flex-row items-center border-t border-black/5 pt-3 mt-auto">
-                            <View
-                                className={`w-2 h-2 rounded-full mr-2 ${isAvailableToday ? (isCompleted ? "bg-emerald-500" : "bg-blue-500") : "bg-slate-300"}`}
-                            />
-                            <Text className="text-slate-500 font-generalsans-medium text-xs">
-                                {!isAvailableToday
-                                    ? "Rest Day"
-                                    : `Goal: ${getTargetText(item)}`}
-                            </Text>
-                            <Ionicons
-                                name="chevron-forward"
-                                size={14}
-                                color="rgba(0,0,0,0.2)"
-                                style={{ marginLeft: "auto" }}
-                            />
-                        </View>
+            {/* Left: Completion Status */}
+            <View style={styles.statusColumn}>
+                {isCompleted && isAvailableToday ? (
+                    <View style={styles.completedCircle}>
+                        <Ionicons name="checkmark" size={14} color="#FFFFFF" />
                     </View>
+                ) : !isAvailableToday ? (
+                    <View style={styles.unavailableCircle}>
+                        <Ionicons name="moon-outline" size={12} color="#9CA3AF" />
+                    </View>
+                ) : (
+                    <View style={styles.pendingCircle} />
+                )}
+            </View>
+
+            {/* Main Card */}
+            <TouchableOpacity
+                activeOpacity={isAvailableToday ? 0.7 : 0.9}
+                onPress={onPress}
+                style={[
+                    styles.card,
+                    !isAvailableToday && styles.cardInactive
+                ]}
+            >
+                {/* Icon */}
+                <View style={[
+                    styles.iconContainer,
+                    { backgroundColor: categoryStyle.bg },
+                    !isAvailableToday && { opacity: 0.5 }
+                ]}>
+                    <Text style={{ fontSize: 22 }}>{categoryStyle.icon}</Text>
                 </View>
+
+                {/* Content */}
+                <View style={styles.content}>
+                    <Text
+                        style={[styles.title, !isAvailableToday && styles.titleInactive]}
+                        numberOfLines={1}
+                    >
+                        {item.title}
+                    </Text>
+
+                    {/* Show different subtitle based on availability */}
+                    {isAvailableToday ? (
+                        <Text style={styles.streak}>
+                            {streak > 0 ? `🔥 ${streak} day streak` : "Start your streak!"}
+                        </Text>
+                    ) : (
+                        <View style={styles.scheduleBadge}>
+                            <Ionicons name="calendar-outline" size={11} color="#9CA3AF" />
+                            <Text style={styles.scheduleText}>{scheduleText}</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Right: Target or Inactive Badge */}
+                {isAvailableToday ? (
+                    targetText && (
+                        <View style={styles.timeContainer}>
+                            <Ionicons name="time-outline" size={16} color={TEXT_SECONDARY} />
+                            <Text style={styles.timeText}>{targetText}</Text>
+                        </View>
+                    )
+                ) : (
+                    <View style={styles.restBadge}>
+                        <Text style={styles.restText}>Rest day</Text>
+                    </View>
+                )}
             </TouchableOpacity>
         </Animated.View>
     );
 };
 
-// --- COMPONENT: Day Circles ---
-const DayCircles = ({
-    item,
-    isInactive,
-}: {
-    item: Resolution;
-    isInactive: boolean;
-}) => {
-    const daysMap = [1, 2, 3, 4, 5, 6, 0];
-    const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
-
-    const isDayActive = (jsDayIndex: number, loopIndex: number) => {
-        const { frequencyType, customDays, daysPerWeek } = item;
-        if (frequencyType === "daily") return true;
-        if (frequencyType === "weekdays") return jsDayIndex >= 1 && jsDayIndex <= 5;
-        if (frequencyType === "weekends")
-            return jsDayIndex === 0 || jsDayIndex === 6;
-        if (frequencyType === "custom" && customDays)
-            return customDays.includes(jsDayIndex);
-        if (frequencyType === "x_days_per_week" && daysPerWeek)
-            return loopIndex < daysPerWeek;
-        return false;
-    };
-
-    return (
-        <View className="flex-row items-center space-x-1 mt-3">
-            {daysMap.map((jsDayIndex, loopIndex) => {
-                const active = isDayActive(jsDayIndex, loopIndex);
-                // Adjusted colors for glass overlap
-                const activeColor = isInactive ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0.6)";
-
-                return (
-                    <Animated.View
-                        key={loopIndex}
-                        entering={FadeInUp.delay(loopIndex * 30)
-                            .duration(DURATION_NORMAL)
-                            .easing(SMOOTH_EASING)}
-                        style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 11,
-                            backgroundColor: active ? activeColor : "rgba(255,255,255,0.3)", // Lighter empty state for glass
-                            alignItems: "center",
-                            justifyContent: "center",
-                            marginRight: 4,
-                        }}
-                    >
-                        <Text
-                            style={{
-                                fontSize: 9,
-                                color: active ? "#FFFFFF" : "rgba(0,0,0,0.4)",
-                                fontWeight: "700",
-                            }}
-                        >
-                            {dayLabels[loopIndex]}
-                        </Text>
-                    </Animated.View>
-                );
-            })}
-        </View>
-    );
-};
-
 const styles = StyleSheet.create({
-    // Removed padding/bg from here as it's now handled inline for layer separation
-    cardShadow: {
+    wrapper: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 14,
+    },
+    statusColumn: {
+        width: 36,
+        alignItems: "center",
+    },
+    completedCircle: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: ACCENT_ORANGE,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    pendingCircle: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: "#D1D5DB",
+        backgroundColor: "transparent",
+    },
+    unavailableCircle: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: "#F3F4F6",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    card: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 999,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        paddingRight: 18,
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.12,
-        shadowRadius: 16,
-        elevation: 6,
-        marginBottom: 8,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 3,
+        elevation: 1,
+    },
+    cardInactive: {
+        backgroundColor: "#FAFAFA",
+        opacity: 0.75,
+    },
+    iconContainer: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 14,
+    },
+    content: {
+        flex: 1,
+    },
+    title: {
+        fontSize: 15,
+        fontFamily: "Nunito-Bold",
+        color: TEXT_PRIMARY,
+        marginBottom: 3,
+    },
+    titleInactive: {
+        color: "#9CA3AF",
+    },
+    streak: {
+        fontSize: 12,
+        fontFamily: "Nunito-Medium",
+        color: TEXT_SECONDARY,
+    },
+    scheduleBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    scheduleText: {
+        fontSize: 11,
+        fontFamily: "Nunito-SemiBold",
+        color: "#9CA3AF",
+    },
+    timeContainer: {
+        alignItems: "center",
+        paddingLeft: 14,
+        borderLeftWidth: 1,
+        borderLeftColor: "#F3F4F6",
+    },
+    timeText: {
+        fontSize: 12,
+        fontFamily: "Nunito-Medium",
+        color: TEXT_SECONDARY,
+        marginTop: 2,
+    },
+    restBadge: {
+        backgroundColor: "#F3F4F6",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 999,
+    },
+    restText: {
+        fontSize: 11,
+        fontFamily: "Nunito-SemiBold",
+        color: "#9CA3AF",
     },
 });

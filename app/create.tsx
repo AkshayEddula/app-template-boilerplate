@@ -5,9 +5,8 @@ import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from 'convex/react';
-import { GlassView } from 'expo-glass-effect';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { setStatusBarStyle } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -15,54 +14,34 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
 import Animated, {
-    FadeInRight,
-    FadeInUp,
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withSequence,
-    withTiming
+    FadeInUp
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// --- Types & Constants ---
-type CategoryKey = "health" | "mind" | "career" | "life" | "fun";
+// Theme Colors
+const BG_COLOR = "#FAF9F6";
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
 
-const CATEGORY_ICONS: Record<CategoryKey, keyof typeof Ionicons.glyphMap> = {
-    health: "fitness",
-    mind: "leaf",
-    career: "briefcase",
-    life: "heart",
-    fun: "game-controller"
+// Category configuration
+const CATEGORY_CONFIG: Record<string, { emoji: string; color: string; bg: string }> = {
+    health: { emoji: "💧", color: "#10B981", bg: "#ECFDF5" },
+    mind: { emoji: "🧘", color: "#8B5CF6", bg: "#F5F3FF" },
+    career: { emoji: "💼", color: "#3B82F6", bg: "#EFF6FF" },
+    life: { emoji: "🌟", color: "#F59E0B", bg: "#FFFBEB" },
+    fun: { emoji: "🎮", color: "#EC4899", bg: "#FDF2F8" },
 };
 
-// --- Components ---
-
-const SkeletonCard = () => {
-    const opacity = useSharedValue(0.3);
-    useEffect(() => {
-        opacity.value = withRepeat(
-            withSequence(withTiming(0.6, { duration: 800 }), withTiming(0.3, { duration: 800 })),
-            -1,
-            true
-        );
-    }, []);
-    const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
-    return (
-        <Animated.View style={[{ width: '47%' }, animatedStyle]}>
-            <View className="bg-white/10 rounded-[24px] p-4 h-24 border border-white/5" />
-        </Animated.View>
-    );
-};
-
-const AdvancedDaySelector = ({ selectedDays = [], toggleDay, setCustomDays }: {
+// Day Selector Component
+const DaySelector = ({ selectedDays = [], toggleDay, setCustomDays }: {
     selectedDays: number[],
     toggleDay: (d: number) => void,
     setCustomDays: (days: number[]) => void
@@ -73,78 +52,54 @@ const AdvancedDaySelector = ({ selectedDays = [], toggleDay, setCustomDays }: {
     ];
 
     return (
-        <View className="mt-4">
-            <View className="flex-row justify-between items-end mb-3 px-1">
-                <Text className="text-white/30 font-generalsans-bold text-[9px] uppercase tracking-[1px]">Select Specific Days</Text>
-                <TouchableOpacity onPress={() => setCustomDays([])}>
-                    <Text className="text-white/40 font-generalsans-bold text-[10px] uppercase tracking-tight">Reset</Text>
-                </TouchableOpacity>
+        <Animated.View entering={FadeInUp.duration(200)} style={{ marginTop: 12 }}>
+            <View style={styles.daysRow}>
+                {days.map((day) => {
+                    const isSelected = selectedDays.includes(day.v);
+                    return (
+                        <TouchableOpacity
+                            key={day.v}
+                            onPress={() => toggleDay(day.v)}
+                            activeOpacity={0.7}
+                            style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}
+                        >
+                            <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>
+                                {day.l}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
             </View>
-
-            <GlassView
-                glassEffectStyle="regular"
-                tintColor="#3A7AFE"
-                style={{
-                    borderRadius: 20,
-                    padding: 8,
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.1)',
-                    overflow: 'hidden'
-                }}
-            >
-                <View className="flex-row justify-between">
-                    {days.map((day) => {
-                        const isSelected = selectedDays.includes(day.v);
-                        return (
-                            <TouchableOpacity
-                                key={day.v}
-                                onPress={() => toggleDay(day.v)}
-                                activeOpacity={0.6}
-                                className={`w-12 h-12 rounded-full items-center justify-center ${isSelected ? 'bg-white' : 'bg-white/5'}`}
-                            >
-                                <Text className={`font-generalsans-bold text-xs ${isSelected ? 'text-[#3A7AFE]' : 'text-white/40'}`}>
-                                    {day.l}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-            </GlassView>
-
-            <TouchableOpacity
-                onPress={() => setCustomDays([1, 3, 5])}
-                activeOpacity={0.8}
-                className="mt-3 w-full"
-            >
-                <GlassView glassEffectStyle="regular" tintColor="#3A7AFE" style={{ borderRadius: 16, paddingVertical: 14, alignItems: 'center', overflow: 'hidden' }}>
-                    <Text className="text-white/60 font-generalsans-bold text-[9px] uppercase tracking-tight">⚡ Preset: Mon / Wed / Fri</Text>
-                </GlassView>
+            <TouchableOpacity onPress={() => setCustomDays([1, 3, 5])} style={styles.presetButton}>
+                <Text style={styles.presetText}>⚡ Mon/Wed/Fri</Text>
             </TouchableOpacity>
-        </View>
+        </Animated.View>
     );
 };
 
 // --- Main Screen ---
-
 export default function CreateResolution() {
     const router = useRouter();
+
+    useEffect(() => {
+        setStatusBarStyle("dark");
+    }, []);
 
     const categories = useQuery(api.categories.list);
     const createResolution = useMutation(api.userResolutions.create);
     const { isGuest, addGuestResolution, guestResolutions } = useGuest();
     const { isPremium } = useSubscription();
-    // Fetch active resolutions to check limit
     const resolutions = useQuery(api.userResolutions.listActive);
     const [paywallVisible, setPaywallVisible] = useState(false);
 
-    const [selectedCategory, setSelectedCategory] = useState<CategoryKey | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
     const [title, setTitle] = useState('');
     const [frequency, setFrequency] = useState('daily');
     const [customDays, setCustomDays] = useState<number[]>([]);
     const [trackingType, setTrackingType] = useState('yes_no');
-    const [targetValue, setTargetValue] = useState('1');
-    const [countUnit, setCountUnit] = useState('Times');
+    const [targetValue, setTargetValue] = useState('30');
+    const [countUnit, setCountUnit] = useState('times');
     const [submitting, setSubmitting] = useState(false);
 
     const templates = useQuery(
@@ -163,25 +118,22 @@ export default function CreateResolution() {
         setTitle(template.title);
         setFrequency(template.suggestedFrequency || 'daily');
         setTrackingType(template.trackingType || 'yes_no');
-
         if (template.trackingType === 'time_based') {
             setTargetValue(String(template.suggestedTargetTime || 30));
         } else if (template.trackingType === 'count_based') {
             setTargetValue(String(template.suggestedTargetCount || 10));
-            setCountUnit(template.suggestedCountUnit || 'Times');
+            setCountUnit(template.suggestedCountUnit || 'times');
         }
     };
 
     const handleCreate = async () => {
-        // --- LIMIT CHECK ---
         const currentCount = isGuest ? guestResolutions.length : (resolutions?.length || 0);
         if (!isPremium && currentCount >= 2) {
             setPaywallVisible(true);
             return;
         }
-
-        if (!selectedCategory) return Alert.alert("Wait", "Select focus.");
-        if (!title.trim()) return Alert.alert("Wait", "Name your goal.");
+        if (!selectedCategory) return Alert.alert("Oops", "Pick a focus area first!");
+        if (!title.trim()) return Alert.alert("Oops", "Give your goal a name!");
 
         setSubmitting(true);
         let finalDays: number[] = [];
@@ -220,243 +172,169 @@ export default function CreateResolution() {
             });
             router.back();
         } catch (e) {
-            Alert.alert("Error", "Initialization failed.");
+            Alert.alert("Error", "Something went wrong!");
         } finally {
             setSubmitting(false);
         }
     };
 
-    const SectionHeader = ({ title, icon }: { title: string, icon: any }) => (
-        <View className="flex-row items-center gap-2 mb-4 mt-8">
-            <Ionicons name={icon} size={14} color="white" style={{ opacity: 0.5 }} />
-            <Text className="text-white/50 font-generalsans-bold text-[9px] uppercase tracking-[-0.1px]">{title}</Text>
-        </View>
-    );
-
     return (
-        <LinearGradient colors={["#2F6CF6",
-            "#3A7AFE",
-            "#5C94FF",]} style={{ flex: 1 }} className="flex-1 bg-[#3A7AFE]">
-            <SafeAreaView className="flex-1" edges={['top']}>
+        <View style={styles.container}>
+            <SafeAreaView style={{ flex: 1 }} edges={['top']}>
                 {/* Header */}
-                <View className="flex-row justify-between items-center px-6 pb-0 py-4">
-                    <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
-                        <Ionicons name="close" size={28} color="white" />
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+                        <Ionicons name="close" size={24} color={TEXT_PRIMARY} />
                     </TouchableOpacity>
-                    <Text className="text-white font-generalsans-bold text-xl tracking-tighter">New Resolution</Text>
-                    <View className="w-10" />
+                    <Text style={styles.headerTitle}>New Goal ✨</Text>
+                    <View style={{ width: 48 }} />
                 </View>
 
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
-                    <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 150 }}>
-
-                        {/* Step 1: Focus Area */}
-                        <SectionHeader title="Focus Area" icon="apps" />
-                        <View className="flex-row flex-wrap gap-3">
-                            {!categories ? (
-                                <View className="flex-row gap-3 w-full">
-                                    <SkeletonCard /><SkeletonCard />
-                                </View>
-                            ) : (
-                                categories.map((cat: any) => {
-                                    // Match the category key to an icon, fallback to "flash"
-                                    const iconName = CATEGORY_ICONS[cat.key as CategoryKey] || "flash";
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                    <ScrollView
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        {/* FOCUS AREA */}
+                        <Text style={styles.label}>🎯 Focus Area</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }}>
+                            <View style={styles.categoryRow}>
+                                {categories?.map((cat: any) => {
+                                    const config = CATEGORY_CONFIG[cat.key] || { emoji: "✨", color: ACCENT_ORANGE, bg: "#FFF7ED" };
                                     const isSelected = selectedCategory === cat.key;
-
                                     return (
                                         <TouchableOpacity
                                             key={cat.key}
-                                            onPress={() => { setSelectedCategory(cat.key as CategoryKey); setSelectedTemplateId(null); }}
-                                            activeOpacity={0.8}
-                                            style={{ width: '47%' }}
+                                            onPress={() => { setSelectedCategory(cat.key); setSelectedTemplateId(null); }}
+                                            style={[
+                                                styles.categoryPill,
+                                                isSelected && { backgroundColor: config.color, borderColor: config.color }
+                                            ]}
+                                            activeOpacity={0.7}
                                         >
-                                            <GlassView
-                                                isInteractive
-                                                glassEffectStyle="regular"
-                                                tintColor={isSelected ? '#FFFFFF' : '#3A7AFE'}
-                                                style={{
-                                                    borderRadius: 24,
-                                                    padding: 20,
-                                                    borderWidth: 1,
-                                                    borderColor: 'rgba(255,255,255,0.1)',
-                                                    overflow: 'hidden'
-                                                }}
-                                            >
-                                                <Ionicons
-                                                    name={iconName}
-                                                    size={20}
-                                                    color={isSelected ? '#3A7AFE' : 'white'}
-                                                />
-                                                <Text className={`font-generalsans-bold mt-2 tracking-tight ${isSelected ? 'text-[#3A7AFE]' : 'text-white'}`}>
-                                                    {cat.name}
-                                                </Text>
-                                            </GlassView>
+                                            <Text style={{ fontSize: 20 }}>{config.emoji}</Text>
+                                            <Text style={[styles.categoryText, isSelected && { color: '#FFF' }]}>
+                                                {cat.name}
+                                            </Text>
                                         </TouchableOpacity>
                                     );
-                                })
-                            )}
-                        </View>
+                                })}
+                            </View>
+                        </ScrollView>
 
-                        {/* Step 2: Recommendations */}
-                        {selectedCategory && (
-                            <Animated.View entering={FadeInRight}>
-                                <SectionHeader title="Recommendations" icon="flash" />
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-6 px-6">
-                                    <View className="flex-row gap-3 pr-10">
-                                        <TouchableOpacity className='my-1' onPress={() => { setSelectedTemplateId(null); setTitle(''); }}>
-                                            <GlassView
-                                                glassEffectStyle="regular"
-                                                tintColor={!selectedTemplateId ? '#FFFFFF' : '#3A7AFE'}
-                                                style={{ borderRadius: 20, padding: 16, minWidth: 120, minHeight: 100, justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}
-                                            >
-                                                <Ionicons name="create-outline" size={20} color={!selectedTemplateId ? '#3A7AFE' : 'white'} />
-                                                <Text className={`font-generalsans-bold mt-2 tracking-tight ${!selectedTemplateId ? 'text-[#3A7AFE]' : 'text-white'}`}>Custom</Text>
-                                            </GlassView>
+                        {/* TEMPLATES */}
+                        {selectedCategory && templates && templates.length > 0 && (
+                            <>
+                                <Text style={styles.label}>⚡ Quick Pick</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }}>
+                                    <View style={styles.templateRow}>
+                                        <TouchableOpacity
+                                            onPress={() => { setSelectedTemplateId(null); setTitle(''); }}
+                                            style={[styles.templatePill, !selectedTemplateId && styles.templatePillActive]}
+                                        >
+                                            <Text style={{ fontSize: 16 }}>✏️</Text>
+                                            <Text style={[styles.templateText, !selectedTemplateId && { color: '#FFF' }]}>Custom</Text>
                                         </TouchableOpacity>
-
-                                        {!templates ? (
-                                            <View className="w-32 h-[100px] bg-white/10 rounded-[20px] animate-pulse" />
-                                        ) : (
-                                            templates.map((template: any) => (
-                                                <TouchableOpacity className='my-1' key={template._id} onPress={() => handleSelectTemplate(template)}>
-                                                    <GlassView
-                                                        glassEffectStyle="regular"
-                                                        isInteractive
-                                                        tintColor={selectedTemplateId === template._id ? '#FFFFFF' : '#3A7AFE'}
-                                                        style={{ borderRadius: 20, padding: 16, minWidth: 140, minHeight: 100, justifyContent: 'space-between', overflow: 'hidden' }}
-                                                    >
-                                                        <Ionicons name="medal-outline" size={18} color={selectedTemplateId === template._id ? '#3A7AFE' : 'white'} />
-                                                        <View>
-                                                            <Text numberOfLines={1} className={`font-generalsans-bold text-sm  ${selectedTemplateId === template._id ? 'text-[#3A7AFE]' : 'text-white'}`}>{template.title}</Text>
-                                                            <Text className={`text-[8px] font-generalsans-medium uppercase ${selectedTemplateId === template._id ? 'text-[#3A7AFE]/60' : 'text-white/40'}`}>{template.trackingType.replace('_', ' ')}</Text>
-                                                        </View>
-                                                    </GlassView>
-                                                </TouchableOpacity>
-                                            ))
-                                        )}
+                                        {templates.map((t: any) => (
+                                            <TouchableOpacity
+                                                key={t._id}
+                                                onPress={() => handleSelectTemplate(t)}
+                                                style={[styles.templatePill, selectedTemplateId === t._id && styles.templatePillActive]}
+                                            >
+                                                <Text style={{ fontSize: 16 }}>💡</Text>
+                                                <Text numberOfLines={1} style={[styles.templateText, selectedTemplateId === t._id && { color: '#FFF' }]}>
+                                                    {t.title}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
                                     </View>
                                 </ScrollView>
-                            </Animated.View>
+                            </>
                         )}
 
-                        {/* Step 3: Goal Title (Compact 54px) */}
-                        <SectionHeader title="Goal Title" icon="pencil" />
-                        <GlassView
-                            glassEffectStyle="regular"
-                            isInteractive
-                            tintColor="#3A7AFE"
-                            style={{
-                                borderRadius: 20,
-                                height: 56,
-                                borderWidth: 1,
-                                borderColor: 'rgba(255,255,255,0.1)',
-                                overflow: 'hidden',
-                                justifyContent: 'center'
-                            }}
-                        >
+                        {/* GOAL TITLE */}
+                        <Text style={styles.label}>📝 Goal Name</Text>
+                        <View style={styles.inputContainer}>
                             <TextInput
-                                placeholder="e.g. Morning Run"
-                                placeholderTextColor="rgba(255, 255, 255, 0.4)"
-                                selectionColor="white"
-                                cursorColor="white"
+                                placeholder="What's your goal?"
+                                placeholderTextColor={TEXT_SECONDARY}
                                 value={title}
-                                onChangeText={(text) => { setTitle(text); setSelectedTemplateId(null); }}
-                                style={{
-                                    color: 'white',
-                                    fontSize: 15,
-                                    fontFamily: 'GeneralSans-Medium',
-                                    paddingHorizontal: 16,
-                                    height: '100%',
-                                    textAlignVertical: 'center',
-                                    includeFontPadding: false,
-                                }}
+                                onChangeText={(t) => { setTitle(t); setSelectedTemplateId(null); }}
+                                style={styles.input}
                             />
-                        </GlassView>
+                        </View>
 
-                        {/* Step 4: Frequency */}
-                        <SectionHeader title="Frequency" icon="calendar" />
-                        <View className="flex-row gap-2">
-                            {['daily', 'weekdays', 'weekends', 'custom'].map((f) => (
-                                <TouchableOpacity key={f} onPress={() => setFrequency(f)} className="flex-1">
-                                    <GlassView isInteractive glassEffectStyle="regular" tintColor={frequency === f ? '#FFFFFF' : '#3A7AFE'} style={{ borderRadius: 16, padding: 14, alignItems: 'center', overflow: 'hidden' }}>
-                                        <Text className={`font-generalsans-semibold capitalize text-[10px] ${frequency === f ? 'text-[#3A7AFE]' : 'text-white'}`}>{f}</Text>
-                                    </GlassView>
+                        {/* FREQUENCY */}
+                        <Text style={styles.label}>📅 How Often?</Text>
+                        <View style={styles.frequencyGrid}>
+                            {[
+                                { k: 'daily', l: 'Daily', e: '�' },
+                                { k: 'weekdays', l: 'Weekdays', e: '💼' },
+                                { k: 'weekends', l: 'Weekends', e: '🌴' },
+                                { k: 'custom', l: 'Custom', e: '⚙️' },
+                            ].map((f) => (
+                                <TouchableOpacity
+                                    key={f.k}
+                                    onPress={() => setFrequency(f.k)}
+                                    style={[styles.freqPill, frequency === f.k && styles.freqPillActive]}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={{ fontSize: 18 }}>{f.e}</Text>
+                                    <Text style={[styles.freqText, frequency === f.k && { color: '#FFF' }]}>{f.l}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
                         {frequency === 'custom' && (
-                            <Animated.View entering={FadeInUp}>
-                                <AdvancedDaySelector
-                                    selectedDays={customDays}
-                                    toggleDay={toggleCustomDay}
-                                    setCustomDays={setCustomDays}
-                                />
-                            </Animated.View>
+                            <DaySelector selectedDays={customDays} toggleDay={toggleCustomDay} setCustomDays={setCustomDays} />
                         )}
 
-                        {/* Step 5: Tracking Method */}
-                        <SectionHeader title="Tracking Method" icon="stats-chart" />
-                        <View className="gap-3">
+                        {/* TRACKING */}
+                        <Text style={styles.label}>📊 Track By</Text>
+                        <View style={styles.trackingGrid}>
                             {[
-                                { key: 'yes_no', label: 'Simple Check-in', icon: 'checkmark-circle' },
-                                { key: 'count_based', label: 'Numerical Goal', icon: 'add-circle' },
-                                { key: 'time_based', label: 'Timer / Duration', icon: 'time' },
+                                { k: 'yes_no', l: 'Check-in', e: '✅' },
+                                { k: 'count_based', l: 'Count', e: '🔢' },
+                                { k: 'time_based', l: 'Timer', e: '⏱️' },
                             ].map((t) => (
-                                <TouchableOpacity key={t.key} onPress={() => setTrackingType(t.key)}>
-                                    <GlassView isInteractive glassEffectStyle="regular" tintColor={trackingType === t.key ? '#FFFFFF' : '#3A7AFE'} style={{ borderRadius: 18, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
-                                        <Ionicons name={t.icon as any} size={18} color={trackingType === t.key ? '#3A7AFE' : 'white'} />
-                                        <Text className={`font-generalsans-bold text-sm tracking-tight ${trackingType === t.key ? 'text-[#3A7AFE]' : 'text-white'}`}>{t.label}</Text>
-                                    </GlassView>
+                                <TouchableOpacity
+                                    key={t.k}
+                                    onPress={() => setTrackingType(t.k)}
+                                    style={[styles.trackPill, trackingType === t.k && styles.trackPillActive]}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={{ fontSize: 26 }}>{t.e}</Text>
+                                    <Text style={[styles.trackText, trackingType === t.k && styles.trackTextActive]}>{t.l}</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
 
-                        {/* Step 6: Target Inputs (Compact 54px) */}
+                        {/* TARGET */}
                         {trackingType !== 'yes_no' && (
-                            <Animated.View entering={FadeInUp} className="mt-6 flex-row gap-4">
-                                <View className="flex-1">
-                                    <Text className="text-white/40 font-generalsans-bold text-[9px] uppercase mb-2">Target</Text>
-                                    <GlassView isInteractive glassEffectStyle="regular" tintColor="#3A7AFE" style={{ borderRadius: 16, height: 54, overflow: 'hidden', justifyContent: 'center' }}>
+                            <Animated.View entering={FadeInUp.duration(200)} style={styles.targetContainer}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.miniLabel}>{trackingType === 'time_based' ? 'Minutes' : 'Target'}</Text>
+                                    <View style={styles.targetInput}>
                                         <TextInput
                                             keyboardType="numeric"
-                                            selectionColor="white"
-                                            cursorColor="white"
                                             value={targetValue}
                                             onChangeText={setTargetValue}
-                                            style={{
-                                                color: 'white',
-                                                fontSize: 18,
-                                                fontFamily: 'GeneralSans-Bold',
-                                                textAlign: 'center',
-                                                height: '100%',
-                                                textAlignVertical: 'center',
-                                                includeFontPadding: false,
-                                            }}
+                                            style={styles.targetText}
                                         />
-                                    </GlassView>
+                                    </View>
                                 </View>
                                 {trackingType === 'count_based' && (
-                                    <View className="flex-1">
-                                        <Text className="text-white/40 font-generalsans-bold text-[9px] uppercase mb-2">Unit</Text>
-                                        <GlassView isInteractive glassEffectStyle="regular" tintColor="#3A7AFE" style={{ borderRadius: 16, height: 54, overflow: 'hidden', justifyContent: 'center' }}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.miniLabel}>Unit</Text>
+                                        <View style={styles.targetInput}>
                                             <TextInput
-                                                placeholder="Unit..."
-                                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                                selectionColor="white"
-                                                cursorColor="white"
+                                                placeholder="cups"
+                                                placeholderTextColor={TEXT_SECONDARY}
                                                 value={countUnit}
                                                 onChangeText={setCountUnit}
-                                                style={{
-                                                    color: 'white',
-                                                    fontSize: 14,
-                                                    fontFamily: 'GeneralSans-Medium',
-                                                    textAlign: 'center',
-                                                    height: '100%',
-                                                    textAlignVertical: 'center',
-                                                    includeFontPadding: false,
-                                                }}
+                                                style={styles.targetText}
                                             />
-                                        </GlassView>
+                                        </View>
                                     </View>
                                 )}
                             </Animated.View>
@@ -464,21 +342,283 @@ export default function CreateResolution() {
                     </ScrollView>
                 </KeyboardAvoidingView>
 
-                {/* Footer Button */}
-                <View className="px-6 pb-10">
-                    <TouchableOpacity onPress={handleCreate} disabled={submitting}>
-                        <GlassView isInteractive glassEffectStyle="regular" tintColor="#FFFFFF" style={{ borderRadius: 20, height: 60, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                            {submitting ? <ActivityIndicator color="#3A7AFE" /> : <Text className="text-[#3A7AFE] font-generalsans-bold text-lg tracking-tight">Initialize Goal</Text>}
-                        </GlassView>
+                {/* CREATE BUTTON */}
+                <View style={styles.footer}>
+                    <TouchableOpacity
+                        onPress={handleCreate}
+                        disabled={submitting}
+                        style={[styles.createBtn, (!selectedCategory || !title.trim()) && styles.createBtnDisabled]}
+                        activeOpacity={0.8}
+                    >
+                        {submitting ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <>
+                                <Text style={styles.createText}>Create Goal</Text>
+                                <Text style={{ fontSize: 20 }}>🚀</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
 
-            {/* Paywall Modal */}
-            <PaywallModal
-                visible={paywallVisible}
-                onClose={() => setPaywallVisible(false)}
-            />
-        </LinearGradient>
+            <PaywallModal visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
+        </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: BG_COLOR },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+    },
+    closeBtn: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#F3F4F6',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 22,
+        color: TEXT_PRIMARY,
+    },
+    label: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 15,
+        color: TEXT_PRIMARY,
+        marginTop: 24,
+        marginBottom: 12,
+    },
+    miniLabel: {
+        fontFamily: 'Nunito-SemiBold',
+        fontSize: 12,
+        color: TEXT_SECONDARY,
+        marginBottom: 8,
+    },
+
+    // Categories
+    categoryRow: {
+        flexDirection: 'row',
+        gap: 10,
+        paddingHorizontal: 20,
+    },
+    categoryPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        borderRadius: 999,
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+    },
+    categoryText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 14,
+        color: TEXT_PRIMARY,
+    },
+
+    // Templates
+    templateRow: {
+        flexDirection: 'row',
+        gap: 10,
+        paddingHorizontal: 20,
+    },
+    templatePill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 999,
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+    },
+    templatePillActive: {
+        backgroundColor: ACCENT_ORANGE,
+        borderColor: ACCENT_ORANGE,
+    },
+    templateText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 13,
+        color: TEXT_PRIMARY,
+    },
+
+    // Input
+    inputContainer: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 999,
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+    },
+    input: {
+        fontFamily: 'Nunito-SemiBold',
+        fontSize: 16,
+        color: TEXT_PRIMARY,
+        paddingHorizontal: 24,
+        paddingVertical: 18,
+    },
+
+    // Frequency
+    frequencyGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+    },
+    freqPill: {
+        width: '48%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 16,
+        borderRadius: 999,
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+    },
+    freqPillActive: {
+        backgroundColor: TEXT_PRIMARY,
+        borderColor: TEXT_PRIMARY,
+    },
+    freqText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 14,
+        color: TEXT_PRIMARY,
+    },
+
+    // Day selector
+    daysRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 999,
+        padding: 6,
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+    },
+    dayCircle: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dayCircleSelected: {
+        backgroundColor: ACCENT_ORANGE,
+    },
+    dayText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 14,
+        color: TEXT_SECONDARY,
+    },
+    dayTextSelected: {
+        color: '#FFFFFF',
+    },
+    presetButton: {
+        marginTop: 10,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 999,
+        paddingVertical: 14,
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+    },
+    presetText: {
+        fontFamily: 'Nunito-SemiBold',
+        fontSize: 13,
+        color: TEXT_SECONDARY,
+    },
+
+    // Tracking
+    trackingGrid: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    trackPill: {
+        flex: 1,
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 20,
+        borderRadius: 24,
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+    },
+    trackPillActive: {
+        backgroundColor: '#FFF7ED',
+        borderColor: ACCENT_ORANGE,
+    },
+    trackText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 12,
+        color: TEXT_SECONDARY,
+    },
+    trackTextActive: {
+        color: ACCENT_ORANGE,
+    },
+
+    // Target
+    targetContainer: {
+        flexDirection: 'row',
+        gap: 14,
+        marginTop: 16,
+    },
+    targetInput: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 999,
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+    },
+    targetText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 22,
+        color: TEXT_PRIMARY,
+        textAlign: 'center',
+        paddingVertical: 16,
+    },
+
+    // Footer
+    footer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        paddingHorizontal: 20,
+        paddingBottom: 36,
+        paddingTop: 16,
+        backgroundColor: BG_COLOR,
+    },
+    createBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        backgroundColor: ACCENT_ORANGE,
+        borderRadius: 999,
+        paddingVertical: 20,
+        shadowColor: ACCENT_ORANGE,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
+        elevation: 8,
+    },
+    createBtnDisabled: {
+        backgroundColor: '#D1D5DB',
+        shadowOpacity: 0,
+    },
+    createText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 18,
+        color: '#FFFFFF',
+    },
+});

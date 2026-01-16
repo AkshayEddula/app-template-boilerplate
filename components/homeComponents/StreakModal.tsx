@@ -4,23 +4,29 @@ import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import { Fire02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react-native";
 import { useQuery } from "convex/react";
 import { BlurView } from "expo-blur";
-import { GlassView } from "expo-glass-effect";
 import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
 import {
+  Dimensions,
   FlatList,
   Modal,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import Animated, { Easing, FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown } from "react-native-reanimated";
+
+// Theme Colors - matching home screen
+const BG_COLOR = "#FAF9F6";
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 // --- HELPER: Generate Calendar Data ---
 const getMonthData = () => {
@@ -29,7 +35,6 @@ const getMonthData = () => {
   const month = now.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   let startDay = new Date(year, month, 1).getDay();
-  // Transform to Monday start (0=Mon, 6=Sun)
   startDay = startDay === 0 ? 6 : startDay - 1;
 
   const days = [];
@@ -57,50 +62,42 @@ const getMonthData = () => {
   };
 };
 
-// --- COMPONENT: The Month Heatmap ---
+// --- COMPONENT: Month Heatmap (Light Theme) ---
 const MonthHeatmap = ({
-  history, // Now accepts history array
+  history,
 }: {
   history: { date: string; value: number }[] | undefined;
 }) => {
   const { days, monthName } = useMemo(() => getMonthData(), []);
 
-  // Check if a specific date was completed based on history logs
   const isDateCompleted = (calendarDateStr: string) => {
     if (!history) return false;
-    // Find log for this date
-    // Note: getResolutionAnalytics returns normalized 0-100 values
-    // We consider "Completed" if value >= 100 (or close to it for floating point safety)
     const log = history.find((h) => h.date === calendarDateStr);
-    return log ? log.value >= 99.9 : false; // Using epsilon logic just in case
+    return log ? log.value >= 99.9 : false;
   };
 
   return (
-    <View className="mt-4">
-      <View className="flex-row justify-between items-end mb-3 px-1">
-        <Text className="text-white/50 text-[11px] font-generalsans-bold uppercase tracking-widest">
-          {monthName}
-        </Text>
-        <View className="flex-row gap-3">
-          <View className="flex-row items-center gap-1.5">
-            <View className="w-2 h-2 rounded-full bg-white/10" />
-            <Text className="text-white/30 text-[10px] font-generalsans-medium">
-              Pending
-            </Text>
+    <View style={{ marginTop: 12 }}>
+      {/* Legend */}
+      <View style={styles.heatmapHeader}>
+        <Text style={styles.monthLabel}>{monthName}</Text>
+        <View style={styles.legendContainer}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#E5E7EB" }]} />
+            <Text style={styles.legendText}>Pending</Text>
           </View>
-          <View className="flex-row items-center gap-1.5">
-            <View className="w-2 h-2 rounded-full bg-[#FF9C00]" />
-            <Text className="text-white/50 text-[10px] font-generalsans-medium">
-              Done
-            </Text>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: ACCENT_ORANGE }]} />
+            <Text style={styles.legendText}>Done</Text>
           </View>
         </View>
       </View>
 
-      <View className="flex-row flex-wrap gap-[2px]">
+      {/* Calendar Grid */}
+      <View style={styles.calendarGrid}>
         {days.map((item: any) => {
           if (item.isPadding) {
-            return <View key={item.id} style={{ width: 28, height: 28 }} />;
+            return <View key={item.id} style={styles.dayCell} />;
           }
           const isFilled = isDateCompleted(item.date);
           const isToday = item.isToday;
@@ -108,37 +105,20 @@ const MonthHeatmap = ({
           return (
             <View
               key={item.id}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 14,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: isFilled
-                  ? "#FF9C00"
-                  : isToday
-                    ? "rgba(255,255,255,0.15)"
-                    : "rgba(255,255,255,0.05)",
-                borderWidth: isToday ? 1 : 0,
-                borderColor: isToday ? "rgba(255,255,255,0.5)" : "transparent",
-                shadowColor: isFilled ? "#FF9C00" : "transparent",
-                shadowOffset: { width: 0, height: 0 },
-                shadowOpacity: isFilled ? 0.4 : 0,
-                shadowRadius: 4,
-                elevation: isFilled ? 3 : 0,
-              }}
+              style={[
+                styles.dayCell,
+                {
+                  backgroundColor: isFilled ? ACCENT_ORANGE : isToday ? TEXT_PRIMARY : "#F3F4F6",
+                  borderWidth: isToday && !isFilled ? 2 : 0,
+                  borderColor: TEXT_PRIMARY,
+                },
+              ]}
             >
               <Text
                 style={{
                   fontSize: 10,
-                  fontFamily: isFilled
-                    ? "GeneralSans-Bold"
-                    : "GeneralSans-Medium",
-                  color: isFilled
-                    ? "#FFF"
-                    : isToday
-                      ? "#FFF"
-                      : "rgba(255,255,255,0.3)",
+                  fontFamily: "Nunito-Bold",
+                  color: isFilled || isToday ? "#FFFFFF" : TEXT_SECONDARY,
                 }}
               >
                 {item.day}
@@ -155,7 +135,7 @@ const MonthHeatmap = ({
 export const StreakModal = ({
   visible,
   onClose,
-  resolutions: propResolutions, // Renamed to denote these are initial/prop data
+  resolutions: propResolutions,
   globalStreak,
 }: {
   visible: boolean;
@@ -163,18 +143,13 @@ export const StreakModal = ({
   resolutions: any[] | undefined;
   globalStreak: number;
 }) => {
-  // Fetch detailed analytics (with history) for heatmap
   const analyticsData = useQuery(api.resolutions.getResolutionAnalytics);
 
-  // Merge prop data with analytics data if available
   const activeStreaks = useMemo(() => {
-    // Determine source: prefer analytics if loaded (for history), else props
     const sourceData = analyticsData || propResolutions;
-
     if (!sourceData) return [];
-
     return sourceData
-      .filter((r) => r.isActive) // Removed strict (> 0) check so you can see history even if streak broke today
+      .filter((r) => r.isActive)
       .sort((a, b) => (b.currentStreak || 0) - (a.currentStreak || 0));
   }, [propResolutions, analyticsData]);
 
@@ -190,7 +165,7 @@ export const StreakModal = ({
       setPaywallVisible(true);
     } else if (!isSignedIn) {
       onClose();
-      router.push('/(auth)/sign-up');
+      router.push("/(auth)/sign-up");
     }
   };
 
@@ -198,13 +173,13 @@ export const StreakModal = ({
     if (!isPremium) {
       return {
         message: "Upgrade to Premium to view detailed streak history.",
-        buttonText: "Unlock Access"
+        buttonText: "Unlock Access",
       };
     }
     if (!isSignedIn) {
       return {
         message: "Sign in to save and view your streak history.",
-        buttonText: "Sign In / Register"
+        buttonText: "Sign In / Register",
       };
     }
     return { message: "Locked", buttonText: "Unlock" };
@@ -213,46 +188,41 @@ export const StreakModal = ({
   const { message, buttonText } = getLockedState();
 
   return (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={visible}
-      onRequestClose={onClose}
-    >
+    <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={onClose}>
+      <StatusBar style="light" />
+
+      {/* Blur Background */}
       <View style={StyleSheet.absoluteFill}>
-        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
         <TouchableOpacity
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
           onPress={onClose}
           activeOpacity={1}
         />
       </View>
 
-      <Animated.View
-        entering={FadeInDown.duration(450).easing(Easing.out(Easing.cubic))}
-        style={{
-          position: "absolute",
-          bottom: 10,
-          left: 5,
-          right: 5,
-          height: "85%",
-          backgroundColor:
-            Platform.OS === "android" ? "#3A7AFE" : "transparent",
-          borderRadius: 40,
-          overflow: "hidden",
-        }}
-      >
-        {Platform.OS === "ios" && (
-          <GlassView
-            style={{
-              ...StyleSheet.absoluteFillObject,
-              borderRadius: 40,
-              overflow: "hidden",
-            }}
-            glassEffectStyle="regular"
-            tintColor="#3A7AFE"
-          />
-        )}
+      {/* Bottom Sheet */}
+      <View style={styles.sheet}>
+        {/* Handle */}
+        <View style={styles.handleContainer}>
+          <View style={styles.handle} />
+        </View>
+
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Streaks</Text>
+            <View style={styles.subtitleRow}>
+              <Text style={styles.subtitle}>You're on a </Text>
+              <Text style={styles.streakNumber}>{globalStreak} day</Text>
+              <Text style={styles.subtitle}> streak! 🔥</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons name="close" size={22} color={TEXT_PRIMARY} />
+          </TouchableOpacity>
+        </View>
 
         {/* Lock View */}
         {isLocked && (
@@ -263,128 +233,237 @@ export const StreakModal = ({
           />
         )}
 
-        <View className="z-50 pt-8 pb-2">
-          <View className="px-6 flex-row justify-between items-start mb-4">
-            <View
-              style={{
-                backgroundColor: "rgba(255,156,0,0.15)",
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: "rgba(255,156,0,0.25)",
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <HugeiconsIcon icon={Fire02Icon} size={14} color="#FF9C00" />
-              <Text className="text-[#FF9C00] font-generalsans-bold text-[11px] uppercase tracking-wide">
-                Streak Zone
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              onPress={onClose}
-              className="w-9 h-9 rounded-full bg-white/10 items-center justify-center border border-white/10"
-            >
-              <Ionicons name="close" size={20} color="white" />
-            </TouchableOpacity>
-          </View>
-
-          <View className="px-6 mb-8">
-            <Text className="text-white font-generalsans-bold text-4xl tracking-tighter">
-              Consistency
-            </Text>
-            <View className="flex-row items-baseline gap-2 mt-1">
-              <Text className="text-white/60 font-generalsans-medium text-sm">
-                You are on a
-              </Text>
-              <Text className="text-[#FF9C00] font-generalsans-bold text-xl">
-                {globalStreak} day
-              </Text>
-              <Text className="text-white/60 font-generalsans-medium text-sm">
-                global streak!
-              </Text>
-            </View>
-          </View>
-        </View>
-
+        {/* Streak Cards */}
         <View style={{ flex: 1 }}>
           <FlatList
             data={activeStreaks}
             keyExtractor={(item) => item._id}
             contentContainerStyle={{
-              paddingBottom: 80,
-              paddingHorizontal: 16,
-              gap: 16,
+              paddingBottom: 40,
+              paddingHorizontal: 20,
+              gap: 14,
             }}
             showsVerticalScrollIndicator={false}
             renderItem={({ item, index }) => {
-              // Extract history from the item (it will be present if analyticsData loaded)
               const history = (item as any).history;
 
               return (
                 <Animated.View
-                  entering={FadeInDown.delay(index * 100).duration(600)}
-                  className="rounded-[32px] overflow-hidden"
-                  style={{
-                    backgroundColor: "rgba(255, 255, 255, 0.08)",
-                    borderWidth: 1,
-                    borderColor: "rgba(255, 255, 255, 0.08)",
-                  }}
+                  entering={FadeInDown.delay(index * 80).duration(400)}
+                  style={styles.streakCard}
                 >
-                  <View className="p-6">
-                    <View className="flex-row justify-between items-start mb-2">
-                      <View className="flex-1">
-                        <Text
-                          className="text-white font-generalsans-semibold text-[19px] tracking-tight"
-                          numberOfLines={1}
-                        >
-                          {item.title}
-                        </Text>
-                        <Text className="text-white/40 text-xs mt-1 font-generalsans-medium capitalize">
-                          {item.frequencyType.replace(/_/g, " ")} schedule
-                        </Text>
-                      </View>
-
-                      <View className="items-end">
-                        <Text className="text-2xl font-generalsans-bold text-[#FF9C00]">
-                          {item.currentStreak || 0}
-                        </Text>
-                        <Text className="text-white/30 text-[9px] uppercase font-generalsans-bold tracking-wider">
-                          Streak
-                        </Text>
-                      </View>
+                  {/* Card Header */}
+                  <View style={styles.cardHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardTitle} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.cardSubtitle}>
+                        {item.frequencyType.replace(/_/g, " ")} schedule
+                      </Text>
                     </View>
 
-                    <View className="h-[1px] bg-white/5 w-full my-3" />
-
-                    <MonthHeatmap
-                      history={history} // Pass full history
-                    />
+                    <View style={styles.streakBadge}>
+                      <Text style={styles.streakBadgeNumber}>
+                        {item.currentStreak || 0}
+                      </Text>
+                      <Text style={styles.streakBadgeLabel}>🔥</Text>
+                    </View>
                   </View>
+
+                  {/* Heatmap */}
+                  <MonthHeatmap history={history} />
                 </Animated.View>
               );
             }}
             ListEmptyComponent={
-              <View className="items-center justify-center py-10">
-                <Text className="text-center text-white/40 font-generalsans-medium">
-                  No active streaks yet.
-                </Text>
-                <Text className="text-center text-white/20 text-xs mt-2 font-generalsans-medium">
-                  Complete your goals today to build a streak!
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIcon}>
+                  <Text style={{ fontSize: 32 }}>🔥</Text>
+                </View>
+                <Text style={styles.emptyTitle}>No active streaks</Text>
+                <Text style={styles.emptySubtitle}>
+                  Complete goals to build your streak!
                 </Text>
               </View>
             }
           />
         </View>
-      </Animated.View>
+      </View>
 
-      <PaywallModal
-        visible={paywallVisible}
-        onClose={() => setPaywallVisible(false)}
-      />
+      <PaywallModal visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
     </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  sheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: SCREEN_HEIGHT * 0.9,
+    backgroundColor: BG_COLOR,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    overflow: 'hidden',
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  title: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 28,
+    color: TEXT_PRIMARY,
+  },
+  subtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  subtitle: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 14,
+    color: TEXT_SECONDARY,
+  },
+  streakNumber: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 14,
+    color: ACCENT_ORANGE,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  streakCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  cardTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 17,
+    color: TEXT_PRIMARY,
+    marginBottom: 2,
+  },
+  cardSubtitle: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+    textTransform: "capitalize",
+  },
+  streakBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    gap: 4,
+  },
+  streakBadgeNumber: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 18,
+    color: ACCENT_ORANGE,
+  },
+  streakBadgeLabel: {
+    fontSize: 14,
+  },
+  heatmapHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  monthLabel: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 11,
+    color: TEXT_SECONDARY,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  legendContainer: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 10,
+    color: TEXT_SECONDARY,
+  },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  dayCell: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 80,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 18,
+    color: TEXT_PRIMARY,
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 14,
+    color: TEXT_SECONDARY,
+  },
+});

@@ -25,6 +25,9 @@ import Animated, {
 
 WebBrowser.maybeCompleteAuthSession();
 
+// Primary blue color
+const PRIMARY_BLUE = '#3A7AFE';
+
 const ScaleButton = ({ onPress, disabled, children, style }: any) => {
     const scale = useSharedValue(1);
     const onPressIn = () => { scale.value = withSpring(0.96); };
@@ -61,8 +64,8 @@ export default function SignUpScreen() {
     const isLoading = googleLoading || appleLoading;
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#3A7AFE' }}>
-            <StatusBar style="light" />
+        <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+            <StatusBar style="dark" />
 
             <ScrollView
                 className="flex-1"
@@ -80,16 +83,16 @@ export default function SignUpScreen() {
                     <Animated.View entering={FadeInDown.duration(500)} className="items-center mb-8">
                         {/* App Name */}
                         <Text
-                            className="text-4xl font-inter-bold tracking-tight text-center mb-1"
-                            style={{ color: '#FFFFFF' }}
+                            className="text-4xl font-nunito-bold tracking-tight text-center mb-1"
+                            style={{ color: PRIMARY_BLUE }}
                         >
                             Levora
                         </Text>
 
                         {/* Tagline */}
                         <Text
-                            className="text-xs font-inter-medium tracking-widest uppercase mb-6"
-                            style={{ color: 'rgba(255,255,255,0.7)' }}
+                            className="text-xs font-nunito-semibold tracking-widest uppercase mb-6"
+                            style={{ color: '#64748B' }}
                         >
                             Your 2026 Reset
                         </Text>
@@ -98,36 +101,41 @@ export default function SignUpScreen() {
                         <View
                             className="mb-6"
                             style={{
-                                backgroundColor: 'rgba(255,255,255,0.1)',
+                                backgroundColor: '#FFFFFF',
                                 paddingHorizontal: 28,
                                 paddingVertical: 20,
                                 borderRadius: 24,
                                 borderWidth: 1,
-                                borderColor: 'rgba(255,255,255,0.1)',
+                                borderColor: '#E2E8F0',
+                                shadowColor: PRIMARY_BLUE,
+                                shadowOpacity: 0.08,
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowRadius: 16,
+                                elevation: 4,
                             }}
                         >
                             <View className="flex-row items-center justify-center gap-4">
                                 <View className="items-center">
                                     <Text className="text-4xl mb-1">🌱</Text>
-                                    <Text className="text-[10px] font-inter-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                                    <Text className="text-[10px] font-nunito-semibold" style={{ color: '#64748B' }}>
                                         Start
                                     </Text>
                                 </View>
 
-                                <Text className="text-2xl" style={{ color: 'rgba(255,255,255,0.4)' }}>→</Text>
+                                <Text className="text-2xl" style={{ color: PRIMARY_BLUE }}>→</Text>
 
                                 <View className="items-center">
                                     <Text className="text-4xl mb-1">🌿</Text>
-                                    <Text className="text-[10px] font-inter-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                                    <Text className="text-[10px] font-nunito-semibold" style={{ color: '#64748B' }}>
                                         Grow
                                     </Text>
                                 </View>
 
-                                <Text className="text-2xl" style={{ color: 'rgba(255,255,255,0.4)' }}>→</Text>
+                                <Text className="text-2xl" style={{ color: PRIMARY_BLUE }}>→</Text>
 
                                 <View className="items-center">
                                     <Text className="text-4xl mb-1">🌳</Text>
-                                    <Text className="text-[10px] font-inter-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                                    <Text className="text-[10px] font-nunito-semibold" style={{ color: '#64748B' }}>
                                         Thrive
                                     </Text>
                                 </View>
@@ -138,23 +146,23 @@ export default function SignUpScreen() {
                     {/* --- DYNAMIC HEADLINE --- */}
                     <Animated.View entering={FadeInDown.delay(100).duration(500)} className="mb-8">
                         <Text
-                            className="text-3xl font-inter-bold text-center leading-tight mb-3"
-                            style={{ color: '#FFFFFF' }}
+                            className="text-3xl font-nunito-bold text-center leading-tight mb-3"
+                            style={{ color: '#1E293B' }}
                         >
                             Transform Your Life,{' \n'}One Habit at a Time
                         </Text>
                         <Text
-                            className="text-base font-inter-medium text-center leading-relaxed px-2 mb-4"
-                            style={{ color: 'rgba(255,255,255,0.7)' }}
+                            className="text-base font-nunito-medium text-center leading-relaxed px-2 mb-4"
+                            style={{ color: '#64748B' }}
                         >
                             Build lasting habits, track your progress, and watch your character evolve with every streak.
                         </Text>
                         {/* Social Proof */}
                         <View className="flex-row items-center justify-center gap-2 mt-2">
-                            <View className="w-6 h-6 rounded-full items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
+                            <View className="w-6 h-6 rounded-full items-center justify-center" style={{ backgroundColor: PRIMARY_BLUE }}>
                                 <Ionicons name="checkmark" size={16} color="white" />
                             </View>
-                            <Text className="text-sm font-inter-semibold" style={{ color: '#FFFFFF' }}>
+                            <Text className="text-sm font-nunito-bold" style={{ color: '#1E293B' }}>
                                 1,000+ resolutions started
                             </Text>
                         </View>
@@ -164,19 +172,19 @@ export default function SignUpScreen() {
                     <Animated.View entering={FadeInDown.delay(200).duration(500)} className="mb-10">
                         <View className="flex-row items-center justify-between px-10">
                             <View style={{ flex: 1 }} className="items-center">
-                                <View className="w-14 h-14 rounded-2xl items-center justify-center mb-3" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                                <View className="w-14 h-14 rounded-2xl items-center justify-center mb-3" style={{ backgroundColor: `${PRIMARY_BLUE}15` }}>
                                     <Text className="text-3xl">✨</Text>
                                 </View>
-                                <Text numberOfLines={1} className="text-xs font-inter-bold text-center" style={{ color: '#FFFFFF' }}>Character Growth</Text>
+                                <Text numberOfLines={1} className="text-xs font-nunito-bold text-center" style={{ color: '#1E293B' }}>Character Growth</Text>
                             </View>
 
-                            <View className="w-px h-16 mx-4" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }} />
+                            <View className="w-px h-16 mx-4" style={{ backgroundColor: '#E2E8F0' }} />
 
                             <View style={{ flex: 1 }} className="items-center">
-                                <View className="w-14 h-14 rounded-2xl items-center justify-center mb-3" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                                <View className="w-14 h-14 rounded-2xl items-center justify-center mb-3" style={{ backgroundColor: `${PRIMARY_BLUE}15` }}>
                                     <Text className="text-3xl">🔥</Text>
                                 </View>
-                                <Text numberOfLines={1} className="text-xs font-inter-bold text-center" style={{ color: '#FFFFFF' }}>Streak Power</Text>
+                                <Text numberOfLines={1} className="text-xs font-nunito-bold text-center" style={{ color: '#1E293B' }}>Streak Power</Text>
                             </View>
                         </View>
                     </Animated.View>
@@ -206,7 +214,7 @@ export default function SignUpScreen() {
                                     {appleLoading ? <ActivityIndicator color="#fff" /> : (
                                         <View className="flex-row items-center justify-center gap-3">
                                             <Ionicons name="logo-apple" size={26} color="#fff" />
-                                            <Text className="text-white text-[18px] font-inter-bold">
+                                            <Text className="text-white text-[18px] font-nunito-bold">
                                                 Continue with Apple
                                             </Text>
                                         </View>
@@ -225,11 +233,13 @@ export default function SignUpScreen() {
                                     height: 60,
                                     borderRadius: 30,
                                     gap: 12,
+                                    borderWidth: 1,
+                                    borderColor: '#E2E8F0',
                                     shadowColor: '#000',
-                                    shadowOpacity: 0.15,
+                                    shadowOpacity: 0.08,
                                     shadowOffset: { width: 0, height: 4 },
                                     shadowRadius: 12,
-                                    elevation: 6,
+                                    elevation: 4,
                                 }}
                                 onPress={() => onOAuthSignUp('oauth_google')}
                                 disabled={isLoading}
@@ -240,7 +250,7 @@ export default function SignUpScreen() {
                                             source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png' }}
                                             style={{ width: 24, height: 24 }}
                                         />
-                                        <Text className="text-[#121212] text-[18px] font-inter-bold">
+                                        <Text className="text-[#1E293B] text-[18px] font-nunito-bold">
                                             Continue with Google
                                         </Text>
                                     </View>
@@ -260,16 +270,19 @@ export default function SignUpScreen() {
                                 flexDirection: 'row',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                backgroundColor: 'transparent',
+                                backgroundColor: PRIMARY_BLUE,
                                 height: 54,
                                 borderRadius: 30,
-                                borderWidth: 1,
-                                borderColor: 'rgba(255,255,255,0.3)',
+                                shadowColor: PRIMARY_BLUE,
+                                shadowOpacity: 0.3,
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowRadius: 12,
+                                elevation: 6,
                             }}
                         >
                             <Text
-                                className="text-[16px] font-inter-bold"
-                                style={{ color: 'rgba(255,255,255,0.7)' }}
+                                className="text-[16px] font-nunito-bold"
+                                style={{ color: '#FFFFFF' }}
                             >
                                 Continue as Guest
                             </Text>
@@ -278,18 +291,18 @@ export default function SignUpScreen() {
 
                     {/* --- FOOTER --- */}
                     <Animated.View entering={FadeInUp.delay(700).duration(500)} className="mt-6">
-                        <Text className="text-xs text-center font-inter-regular leading-5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                        <Text className="text-xs text-center font-nunito-regular leading-5" style={{ color: '#94A3B8' }}>
                             By continuing, you agree to our{' '}
                             <Text
                                 onPress={() => WebBrowser.openBrowserAsync("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")}
-                                style={{ color: 'white', textDecorationLine: 'underline' }}
+                                style={{ color: PRIMARY_BLUE, textDecorationLine: 'underline' }}
                             >
                                 Terms
                             </Text>
                             {' & '}
                             <Text
                                 onPress={() => router.push('/(legal)/privacy-policy')}
-                                style={{ color: 'white', textDecorationLine: 'underline' }}
+                                style={{ color: PRIMARY_BLUE, textDecorationLine: 'underline' }}
                             >
                                 Privacy Policy
                             </Text>

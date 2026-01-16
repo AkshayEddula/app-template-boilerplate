@@ -6,22 +6,29 @@ import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { BlurView } from "expo-blur";
-import { GlassView } from "expo-glass-effect";
 import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
-import { Dimensions, FlatList, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Dimensions, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, { Easing, FadeInDown, FadeOut, Layout } from "react-native-reanimated";
 import { CharacterCard } from "./CharacterCard";
 
+// Theme Colors - matching home screen
+const BG_COLOR = "#FAF9F6";
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
+
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 const FILTERS = [
-    { id: 'all', label: 'All', icon: 'layers' },
-    { id: 'health', label: 'Health', icon: 'heart' },
-    { id: 'mind', label: 'Mind', icon: 'prism' },
-    { id: 'career', label: 'Career', icon: 'briefcase' },
-    { id: 'life', label: 'Life', icon: 'compass' },
-    { id: 'fun', label: 'Fun', icon: 'sparkles' },
+    { id: 'all', label: 'All', icon: '✨' },
+    { id: 'health', label: 'Health', icon: '💧' },
+    { id: 'mind', label: 'Mind', icon: '🧘' },
+    { id: 'career', label: 'Career', icon: '💼' },
+    { id: 'life', label: 'Life', icon: '🌟' },
+    { id: 'fun', label: 'Fun', icon: '🎮' },
 ] as const;
 
 export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClose: () => void }) => {
@@ -69,46 +76,63 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
 
     return (
         <Modal animationType="slide" transparent={true} visible={visible} onRequestClose={onClose}>
+            <StatusBar style="light" />
 
-            {/* 1. Backdrop */}
+            {/* Blur Background */}
             <View style={StyleSheet.absoluteFill}>
                 <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-                <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={onClose} activeOpacity={1} />
+                <TouchableOpacity
+                    style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
+                    onPress={onClose}
+                    activeOpacity={1}
+                />
             </View>
 
-            {/* 2. Main Modal Sheet */}
-            <Animated.View
-                entering={FadeInDown.duration(400).easing(Easing.out(Easing.cubic))}
-                style={{
-                    position: 'absolute',
-                    bottom: 10,
-                    left: 5,
-                    right: 5,
-                    height: '85%',
-                    backgroundColor: Platform.OS === 'android' ? '#3A7AFE' : 'transparent',
-                    // --- FIX START ---
-                    borderRadius: 40,      // Ensures the container itself is rounded
-                    overflow: 'hidden',    // Clips content (cards) that scrolls past the rounded corners
-                    // --- FIX END ---
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 10 },
-                    shadowOpacity: 0.4,
-                    shadowRadius: 30,
-                    elevation: 10,
-                }}
-            >
-                {/* --- GLASS BACKGROUND LAYER --- */}
-                {Platform.OS === 'ios' && (
-                    <GlassView
-                        style={{
-                            ...StyleSheet.absoluteFillObject,
-                            borderRadius: 40,
-                            overflow: 'hidden',
+            {/* Bottom Sheet */}
+            <View style={styles.sheet}>
+                {/* Handle */}
+                <View style={styles.handleContainer}>
+                    <View style={styles.handle} />
+                </View>
+
+                {/* Header */}
+                <View style={styles.header}>
+                    <View>
+                        <Text style={styles.title}>Vault</Text>
+                        <Text style={styles.subtitle}>
+                            {stats.length} cards unlocked 📦
+                        </Text>
+                    </View>
+                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                        <Ionicons name="close" size={22} color={TEXT_PRIMARY} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Filter Pills */}
+                <View style={styles.filterContainer}>
+                    <FlatList
+                        data={FILTERS}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
+                        keyExtractor={(item) => item.id}
+                        renderItem={({ item }) => {
+                            const isActive = activeFilter === item.id;
+                            return (
+                                <TouchableOpacity
+                                    onPress={() => setActiveFilter(item.id)}
+                                    activeOpacity={0.7}
+                                    style={[styles.filterPill, isActive && styles.filterPillActive]}
+                                >
+                                    <Text style={{ fontSize: 14 }}>{item.icon}</Text>
+                                    <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                                        {item.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
                         }}
-                        glassEffectStyle="regular"
-                        tintColor="#3A7AFE"
                     />
-                )}
+                </View>
 
                 {/* Lock View */}
                 {isLocked && (
@@ -119,126 +143,7 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
                     />
                 )}
 
-                {/* --- HEADER SECTION --- */}
-                <View className="z-50 pt-8 pb-4">
-
-                    {/* Top Row: Badge & Close Button */}
-                    <View className="px-6 flex-row justify-between items-start mb-2">
-                        {/* Glass Badge */}
-                        <View style={{
-                            backgroundColor: 'rgba(255,255,255,0.15)',
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
-                            borderRadius: 12,
-                            borderWidth: 1,
-                            borderColor: 'rgba(255,255,255,0.2)',
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 6
-                        }}>
-                            <Ionicons name="grid" size={10} color="rgba(255,255,255,0.9)" />
-                            <Text className="text-white/90 font-generalsans-bold text-[10px] uppercase tracking-wide">
-                                My Collection
-                            </Text>
-                        </View>
-
-                        {/* Glass Orb Close Button */}
-                        <TouchableOpacity
-                            onPress={onClose}
-                            style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 18,
-                                backgroundColor: 'rgba(255,255,255,0.1)',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderWidth: 1,
-                                borderColor: 'rgba(255,255,255,0.15)'
-                            }}
-                        >
-                            <Ionicons name="close" size={20} color="white" />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Title Row */}
-                    <View className="px-6 mb-6">
-                        <Text className="text-white font-generalsans-bold text-5xl tracking-tighter" style={{
-                            textShadowColor: 'rgba(0,0,0,0.1)',
-                            textShadowOffset: { width: 0, height: 2 },
-                            textShadowRadius: 4
-                        }}>
-                            Vault
-                        </Text>
-                        <Text className="text-white/60 font-generalsans-medium text-sm mt-1">
-                            {stats.length} cards unlocked
-                        </Text>
-                    </View>
-
-                    {/* Awesome Filter Bar */}
-                    <View>
-                        <FlatList
-                            data={FILTERS}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={{ paddingHorizontal: 16, gap: 6 }}
-                            keyExtractor={(item) => item.id}
-                            renderItem={({ item }) => {
-                                const isActive = activeFilter === item.id;
-
-                                const bgStyle = isActive
-                                    ? {
-                                        backgroundColor: '#FFFFFF',
-                                        shadowColor: "#000",
-                                        shadowOffset: { width: 0, height: 2 },
-                                        shadowOpacity: 0.1,
-                                        shadowRadius: 4,
-                                        elevation: 2,
-                                    }
-                                    : { backgroundColor: 'rgba(255,255,255,0.1)' };
-
-                                const borderStyle = isActive
-                                    ? { borderColor: '#FFFFFF', borderWidth: 0 }
-                                    : { borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 };
-
-                                return (
-                                    <TouchableOpacity
-                                        onPress={() => setActiveFilter(item.id)}
-                                        activeOpacity={0.8}
-                                        style={{
-                                            ...bgStyle,
-                                            ...borderStyle,
-                                            paddingVertical: 12,
-                                            paddingHorizontal: 20,
-                                            borderRadius: 100,
-                                            flexDirection: 'row',
-                                            alignItems: 'center',
-                                            gap: 8,
-                                        }}
-                                    >
-                                        <Ionicons
-                                            name={item.icon as any}
-                                            size={16}
-                                            color={isActive ? '#3A7AFE' : 'rgba(255,255,255,0.8)'}
-                                        />
-                                        <Text
-                                            style={{
-                                                color: isActive ? '#3A7AFE' : 'rgba(255,255,255,0.9)',
-                                                fontFamily: isActive ? 'GeneralSans-Bold' : 'GeneralSans-Medium',
-                                                fontSize: 14,
-                                                letterSpacing: -0.3
-                                            }}
-                                        >
-                                            {item.label}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            }}
-                        />
-                    </View>
-                </View>
-
-                {/* --- CONTENT --- */}
-                {/* Wrapped in Flex 1 to ensure list respects container height */}
+                {/* Cards Grid */}
                 <View style={{ flex: 1 }}>
                     <FlatList
                         data={filteredData}
@@ -246,24 +151,22 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
                         key={activeFilter}
                         numColumns={2}
                         contentContainerStyle={{
-                            paddingTop: 10,
-                            paddingBottom: 80,
-                            paddingHorizontal: 12,
+                            paddingTop: 16,
+                            paddingBottom: 40,
+                            paddingHorizontal: 16,
                         }}
                         columnWrapperStyle={{
-                            gap: 4,
-                            marginBottom: 0,
+                            gap: 12,
+                            marginBottom: 12,
                             justifyContent: 'space-between',
                         }}
                         showsVerticalScrollIndicator={false}
                         renderItem={({ item, index }) => (
                             <Animated.View
                                 layout={Layout.duration(400).easing(Easing.out(Easing.cubic))}
-                                entering={FadeInDown
-                                    .delay(index * 35)
-                                    .duration(450)
-                                    .easing(Easing.out(Easing.cubic))}
+                                entering={FadeInDown.delay(index * 50).duration(400).easing(Easing.out(Easing.cubic))}
                                 exiting={FadeOut.duration(200)}
+                                style={{ width: (SCREEN_WIDTH - 44) / 2 }}
                             >
                                 <CharacterCard
                                     imageUrl={item.imageUrl}
@@ -273,23 +176,125 @@ export const CollectionModal = ({ visible, onClose }: { visible: boolean, onClos
                             </Animated.View>
                         )}
                         ListEmptyComponent={
-                            <View className="items-center justify-center mt-20 opacity-60">
-                                <View className="w-16 h-16 rounded-full bg-white/10 items-center justify-center mb-4 border border-white/10">
-                                    <Ionicons name="file-tray-outline" size={28} color="white" />
+                            <View style={styles.emptyState}>
+                                <View style={styles.emptyIcon}>
+                                    <Text style={{ fontSize: 32 }}>📦</Text>
                                 </View>
-                                <Text className="text-white font-generalsans-medium text-base">
-                                    Empty Vault
+                                <Text style={styles.emptyTitle}>Empty Vault</Text>
+                                <Text style={styles.emptySubtitle}>
+                                    Complete goals to unlock cards!
                                 </Text>
                             </View>
                         }
                     />
                 </View>
-            </Animated.View>
+            </View>
 
             <PaywallModal
                 visible={paywallVisible}
                 onClose={() => setPaywallVisible(false)}
             />
-        </Modal >
+        </Modal>
     );
 };
+
+const styles = StyleSheet.create({
+    sheet: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: SCREEN_HEIGHT * 0.9,
+        backgroundColor: BG_COLOR,
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        overflow: 'hidden',
+    },
+    handleContainer: {
+        alignItems: 'center',
+        paddingVertical: 12,
+    },
+    handle: {
+        width: 40,
+        height: 4,
+        backgroundColor: '#D1D5DB',
+        borderRadius: 2,
+    },
+    header: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        paddingHorizontal: 20,
+        paddingBottom: 16,
+    },
+    title: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 28,
+        color: TEXT_PRIMARY,
+    },
+    subtitle: {
+        fontFamily: "Nunito-Medium",
+        fontSize: 14,
+        color: TEXT_SECONDARY,
+        marginTop: 2,
+    },
+    closeButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "#F3F4F6",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    filterContainer: {
+        marginBottom: 8,
+    },
+    filterPill: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 999,
+        backgroundColor: "#FFFFFF",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+    },
+    filterPillActive: {
+        backgroundColor: TEXT_PRIMARY,
+        borderColor: TEXT_PRIMARY,
+    },
+    filterText: {
+        fontFamily: "Nunito-SemiBold",
+        fontSize: 14,
+        color: TEXT_SECONDARY,
+    },
+    filterTextActive: {
+        color: "#FFFFFF",
+    },
+    emptyState: {
+        alignItems: "center",
+        justifyContent: "center",
+        paddingTop: 80,
+    },
+    emptyIcon: {
+        width: 80,
+        height: 80,
+        borderRadius: 24,
+        backgroundColor: "#F3F4F6",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 16,
+    },
+    emptyTitle: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 18,
+        color: TEXT_PRIMARY,
+        marginBottom: 4,
+    },
+    emptySubtitle: {
+        fontFamily: "Nunito-Medium",
+        fontSize: 14,
+        color: TEXT_SECONDARY,
+    },
+});
