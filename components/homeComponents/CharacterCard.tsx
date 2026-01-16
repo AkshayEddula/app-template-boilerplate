@@ -59,12 +59,18 @@ export const CharacterCard = ({
   categoryKey,
   imageUrl,
   xp,
+  stage,
+  stageName,
+  minXp,
   message,
   isLocked = false,
 }: {
   categoryKey: string;
   imageUrl: string;
   xp: number;
+  stage?: number;
+  stageName?: string;
+  minXp?: number;
   scale?: number;
   isEquipped?: boolean;
   isCompleted?: boolean;
@@ -74,10 +80,15 @@ export const CharacterCard = ({
   const [modalVisible, setModalVisible] = useState(false);
   const scaleAnim = useState(new Animated.Value(1))[0];
 
+  // Use passed stage info OR calculate from XP (for backward compatibility)
   const { current, next } = getCurrentStageInfo(xp);
+  const displayStage = stage ?? current.stage;
+  const displayStageName = stageName ?? current.name;
+  const unlockXp = minXp ?? current.minXp;
+
   const categoryStyle = CATEGORY_STYLES[categoryKey] || CATEGORY_STYLES.default;
 
-  // XP Progress
+  // XP Progress - based on user's current XP toward the next stage
   const rangeStart = current.minXp;
   const rangeEnd = next ? next.minXp : current.minXp * 1.5;
   const progressPercent =
@@ -103,39 +114,65 @@ export const CharacterCard = ({
     <>
       {/* --- GRID CARD --- */}
       <Pressable
-        onPress={() => setModalVisible(true)}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        style={{ marginBottom: 12 }}
+        onPress={() => !isLocked && setModalVisible(true)}
+        onPressIn={!isLocked ? handlePressIn : undefined}
+        onPressOut={!isLocked ? handlePressOut : undefined}
+        style={{ marginBottom: 12, opacity: isLocked ? 0.7 : 1 }}
       >
         <Animated.View style={{ transform: [{ scale: scaleAnim }], width: CARD_WIDTH }}>
           {/* Card Container */}
-          <View style={[styles.card, { backgroundColor: categoryStyle.bg }]}>
-            {/* Image */}
+          <View style={styles.card}>
+            {/* Image Section */}
             <View style={styles.imageContainer}>
               <Image
                 source={imageUrl}
-                style={{ width: "100%", height: "100%" }}
+                style={[styles.cardImage, isLocked && { opacity: 0.5 }]}
                 contentFit="cover"
               />
-              {/* Progress Bar Overlay */}
-              <View style={styles.progressBarContainer}>
-                <View
-                  style={[styles.progressBar, { width: `${progressPercent}%`, backgroundColor: categoryStyle.color }]}
-                />
+              {/* Gradient Overlay */}
+              <View style={styles.imageOverlay} />
+
+              {/* Category Badge - Top Left */}
+              <View style={[styles.categoryBadge, { backgroundColor: categoryStyle.bg }]}>
+                <Text style={{ fontSize: 14 }}>{categoryStyle.icon}</Text>
               </View>
+
+              {/* Stage Badge - Top Right */}
+              <View style={[styles.stageBadgeTop, { backgroundColor: isLocked ? "#9CA3AF" : categoryStyle.color }]}>
+                <Text style={styles.stageBadgeTopText}>{displayStage}</Text>
+              </View>
+
+              {/* Lock Overlay */}
+              {isLocked && (
+                <View style={styles.lockOverlay}>
+                  <View style={styles.lockIcon}>
+                    <Text style={{ fontSize: 24 }}>🔒</Text>
+                  </View>
+                  <Text style={styles.lockText}>Need {unlockXp} XP</Text>
+                </View>
+              )}
             </View>
 
-            {/* Info */}
+            {/* Info Section */}
             <View style={styles.cardInfo}>
-              <View style={styles.cardInfoLeft}>
-                <Text style={styles.stageName}>{current.name}</Text>
-                <Text style={styles.categoryLabel}>
-                  {categoryKey.charAt(0).toUpperCase() + categoryKey.slice(1)}
+              <Text style={[styles.stageName, isLocked && { color: TEXT_SECONDARY }]}>{displayStageName}</Text>
+              <Text style={styles.categoryLabel}>
+                {categoryKey.charAt(0).toUpperCase() + categoryKey.slice(1)}
+              </Text>
+
+              {/* XP Progress */}
+              <View style={styles.xpRow}>
+                <View style={styles.progressBarBg}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      { width: isLocked ? "0%" : `${progressPercent}%`, backgroundColor: isLocked ? "#D1D5DB" : categoryStyle.color },
+                    ]}
+                  />
+                </View>
+                <Text style={[styles.xpText, { color: isLocked ? TEXT_SECONDARY : categoryStyle.color }]}>
+                  {isLocked ? "Locked" : `${xp} XP`}
                 </Text>
-              </View>
-              <View style={[styles.stageBadge, { backgroundColor: categoryStyle.color }]}>
-                <Text style={styles.stageBadgeText}>{current.stage}</Text>
               </View>
             </View>
           </View>
@@ -324,17 +361,21 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 20,
     overflow: "hidden",
+    backgroundColor: "#FFFFFF",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   imageContainer: {
     width: "100%",
-    height: CARD_WIDTH * 1.3,
+    height: CARD_WIDTH * 1.2,
     backgroundColor: "#F3F4F6",
     position: "relative",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: "hidden",
   },
   progressBarContainer: {
     position: "absolute",
@@ -347,10 +388,85 @@ const styles = StyleSheet.create({
   progressBar: {
     height: "100%",
   },
-  cardInfo: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  cardImage: {
+    width: "100%",
+    height: "100%",
+  },
+  imageOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 40,
+    backgroundColor: "transparent",
+  },
+  categoryBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  stageBadgeTop: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  stageBadgeTopText: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
+  lockOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  lockIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  lockText: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 12,
+    color: "#FFFFFF",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  cardInfo: {
     padding: 14,
   },
   cardInfoLeft: {
@@ -366,6 +482,27 @@ const styles = StyleSheet.create({
     fontFamily: "Nunito-Medium",
     fontSize: 12,
     color: TEXT_SECONDARY,
+    marginBottom: 10,
+  },
+  xpRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  progressBarBg: {
+    flex: 1,
+    height: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 999,
+  },
+  xpText: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 12,
   },
   stageBadge: {
     width: 28,

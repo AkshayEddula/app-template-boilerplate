@@ -6,6 +6,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -13,17 +14,16 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    useWindowDimensions,
     View
 } from 'react-native';
 import Animated, {
     FadeInDown,
     FadeInRight,
     FadeOutLeft,
-    LinearTransition,
     useAnimatedStyle,
     useSharedValue,
     withRepeat,
@@ -33,23 +33,28 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// --- Theme ---
+const BG_COLOR = "#FAF9F6";
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
+
 // --- Types ---
 type CategoryKey = 'health' | 'mind' | 'career' | 'life' | 'fun';
 type TrackingType = 'yes_no' | 'time_based' | 'count_based';
 type FrequencyType = 'daily' | 'weekdays' | 'weekends' | 'custom' | 'x_days_per_week';
 
-// --- Theme Config ---
-// Keeping colors but adjusting bg opacity for cleaner look
-const CATEGORY_CONFIG: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; bgColor: string; accent: string }> = {
-    health: { icon: 'leaf', color: '#059669', bgColor: '#ECFDF5', accent: '#34D399' },
-    mind: { icon: 'prism', color: '#7C3AED', bgColor: '#F5F3FF', accent: '#A78BFA' },
-    career: { icon: 'briefcase', color: '#D97706', bgColor: '#FFFBEB', accent: '#FBBF24' },
-    life: { icon: 'compass', color: '#2563EB', bgColor: '#EFF6FF', accent: '#60A5FA' },
-    fun: { icon: 'sparkles', color: '#DB2777', bgColor: '#FDF2F8', accent: '#F472B6' },
-    default: { icon: 'star', color: '#475569', bgColor: '#F8FAFC', accent: '#94A3B8' }
+// --- Category Config ---
+const CATEGORY_CONFIG: Record<string, { emoji: string; color: string; bgColor: string }> = {
+    health: { emoji: '💧', color: '#059669', bgColor: '#ECFDF5' },
+    mind: { emoji: '🧘', color: '#7C3AED', bgColor: '#F5F3FF' },
+    career: { emoji: '💼', color: '#D97706', bgColor: '#FFFBEB' },
+    life: { emoji: '🌟', color: '#2563EB', bgColor: '#EFF6FF' },
+    fun: { emoji: '🎮', color: '#DB2777', bgColor: '#FDF2F8' },
+    default: { emoji: '✨', color: '#475569', bgColor: '#F8FAFC' }
 };
 
-// --- Reusable Components (Redesigned) ---
+// --- Reusable Components ---
 
 const Skeleton = ({ width, height, style }: { width: number | string, height: number, style?: any }) => {
     const opacity = useSharedValue(0.3);
@@ -61,148 +66,77 @@ const Skeleton = ({ width, height, style }: { width: number | string, height: nu
         );
     }, []);
     const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-    return <Animated.View style={[{ width, height, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 24 }, style, animatedStyle]} />;
+    return <Animated.View style={[{ width, height, backgroundColor: '#E5E7EB', borderRadius: 20 }, style, animatedStyle]} />;
 };
 
 const CustomInput = ({ value, onChangeText, placeholder, keyboardType = 'default', label, autoFocus }: any) => (
-    <View className="mb-8">
-        <Text className="text-xs font-inter-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.7)' }}>{label}</Text>
-        <View
-            style={{
-                borderRadius: 24,
-                height: 68,
-                paddingHorizontal: 24,
-                justifyContent: 'center',
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                borderWidth: 1,
-                borderColor: value ? '#FFFFFF' : 'rgba(255,255,255,0.2)',
-            }}
-        >
+    <View style={{ marginBottom: 20 }}>
+        <Text style={styles.inputLabel}>{label}</Text>
+        <View style={[styles.inputContainer, value && styles.inputContainerActive]}>
             <TextInput
                 value={value}
                 onChangeText={onChangeText}
                 placeholder={placeholder}
-                placeholderTextColor="rgba(255,255,255,0.4)"
+                placeholderTextColor={TEXT_SECONDARY}
                 keyboardType={keyboardType}
                 autoFocus={autoFocus}
-                style={{
-                    fontSize: 18,
-                    color: '#FFFFFF',
-                    fontFamily: 'Inter-Semibold',
-                    height: '100%',
-                }}
-                selectionColor="#FFFFFF"
+                style={styles.inputText}
+                selectionColor={ACCENT_ORANGE}
             />
         </View>
     </View>
 );
 
 const BigNumberInput = ({ value, onChangeText, suffix }: any) => (
-    <View className="items-center py-3">
-        <View className="flex-row items-baseline justify-center rounded-[20px] px-4 py-4" style={{
-            backgroundColor: 'rgba(255,255,255,0.1)',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.2)',
-        }}>
+    <View style={styles.bigNumberContainer}>
+        <View style={styles.bigNumberBox}>
             <TextInput
                 value={value}
                 onChangeText={onChangeText}
                 keyboardType="number-pad"
-                style={{
-                    includeFontPadding: false,
-                    padding: 0,
-                    margin: 0,
-                    color: '#FFFFFF',
-                    fontFamily: 'Inter-Bold',
-                    fontSize: 32,
-                }}
-                className="text-center min-w-[50px]"
+                style={styles.bigNumberInput}
                 placeholder="0"
-                placeholderTextColor="rgba(255,255,255,0.3)"
-                selectionColor="#FFFFFF"
+                placeholderTextColor="#D1D5DB"
+                selectionColor={ACCENT_ORANGE}
                 autoFocus
             />
-            <Text className="font-inter-bold text-lg ml-2" style={{ color: 'rgba(255,255,255,0.6)' }}>{suffix}</Text>
+            <Text style={styles.bigNumberSuffix}>{suffix}</Text>
         </View>
     </View>
 );
 
-const SelectionCard = ({ selected, onPress, title, subtitle, icon }: any) => {
-    return (
-        <TouchableOpacity onPress={onPress} activeOpacity={0.8} className="mb-3">
-            <Animated.View
-                layout={LinearTransition}
-                style={{
-                    backgroundColor: selected ? '#FFFFFF' : 'rgba(255,255,255,0.1)',
-                    borderRadius: 24,
-                    padding: 18,
-                    borderWidth: selected ? 0 : 1,
-                    borderColor: 'rgba(255,255,255,0.15)',
-                    shadowColor: selected ? '#000' : 'transparent',
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: selected ? 0.2 : 0,
-                    shadowRadius: 8,
-                    elevation: selected ? 4 : 0,
-                }}
-            >
-                <View className="flex-row items-center">
-                    <View
-                        style={{ backgroundColor: selected ? '#3A7AFE' : 'rgba(255,255,255,0.1)' }}
-                        className="w-14 h-14 rounded-2xl items-center justify-center"
-                    >
-                        <Ionicons name={icon} size={26} color={selected ? '#FFFFFF' : 'rgba(255,255,255,0.7)'} />
-                    </View>
-                    <View className="ml-4 flex-1 pr-3">
-                        <Text className="text-base font-inter-bold" style={{ color: selected ? '#3A7AFE' : '#FFFFFF' }}>{title}</Text>
-                        {subtitle && <Text className="text-sm font-inter-medium leading-5 mt-0.5" style={{ color: selected ? 'rgba(58,122,254,0.7)' : 'rgba(255,255,255,0.5)' }}>{subtitle}</Text>}
-                    </View>
-                    {selected && (
-                        <Animated.View entering={ZoomIn.duration(300)}>
-                            <Ionicons name="checkmark-circle" size={28} color="#3A7AFE" />
-                        </Animated.View>
-                    )}
-                </View>
-            </Animated.View>
-        </TouchableOpacity>
-    );
-};
+const SelectionCard = ({ selected, onPress, title, subtitle, emoji }: any) => (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ marginBottom: 12 }}>
+        <View style={[styles.selectionCard, selected && styles.selectionCardSelected]}>
+            <View style={[styles.selectionIcon, selected && styles.selectionIconSelected]}>
+                <Text style={{ fontSize: 22 }}>{emoji}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+                <Text style={[styles.selectionTitle, selected && { color: ACCENT_ORANGE }]}>{title}</Text>
+                {subtitle && <Text style={styles.selectionSubtitle}>{subtitle}</Text>}
+            </View>
+            {selected && (
+                <Animated.View entering={ZoomIn.duration(200)}>
+                    <Ionicons name="checkmark-circle" size={26} color={ACCENT_ORANGE} />
+                </Animated.View>
+            )}
+        </View>
+    </TouchableOpacity>
+);
 
 const SimpleDaySelector = ({ selectedDays, toggleDay }: { selectedDays: number[], toggleDay: (d: number) => void }) => {
     const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
     return (
-        <View className="mb-8 mt-4 p-6 rounded-[32px]" style={{
-            backgroundColor: 'rgba(255,255,255,0.05)',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.1)',
-        }}>
-            <Text className="text-xs font-inter-bold text-white/50 uppercase tracking-widest mb-6 text-center">Select Active Days</Text>
-            <View className="flex-row justify-between items-center px-2">
+        <View style={styles.daySelectorContainer}>
+            <Text style={styles.daySelectorLabel}>Select Active Days</Text>
+            <View style={styles.daySelectorRow}>
                 {days.map((day, idx) => {
                     const isSelected = (selectedDays || []).includes(idx);
                     return (
-                        <TouchableOpacity
-                            key={idx}
-                            onPress={() => toggleDay(idx)}
-                            activeOpacity={0.7}
-                        >
-                            <Animated.View
-                                layout={LinearTransition}
-                                style={{
-                                    width: 42,
-                                    height: 42,
-                                    borderRadius: 21,
-                                    backgroundColor: isSelected ? '#FFFFFF' : 'rgba(255,255,255,0.1)',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    borderWidth: isSelected ? 0 : 1,
-                                    borderColor: isSelected ? 'transparent' : 'rgba(255,255,255,0.2)'
-                                }}
-                            >
-                                <Text style={{ color: isSelected ? '#3A7AFE' : 'rgba(255,255,255,0.6)' }} className="font-inter-bold text-sm">
-                                    {day}
-                                </Text>
-                            </Animated.View>
+                        <TouchableOpacity key={idx} onPress={() => toggleDay(idx)} activeOpacity={0.7}>
+                            <View style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}>
+                                <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
+                            </View>
                         </TouchableOpacity>
                     );
                 })}
@@ -211,18 +145,21 @@ const SimpleDaySelector = ({ selectedDays, toggleDay }: { selectedDays: number[]
     );
 };
 
-const HeaderProgress = ({ current, total }: { current: number, total: number }) => {
+const HeaderProgress = ({ current }: { current: number }) => {
+    const stepEmojis = ['🎯', '📝', '📅', '⚡'];
     return (
-        <View className="h-1.5 flex-row gap-1.5 flex-1 mx-4">
-            {[1, 2, 3, 4].map(i => (
-                <View
-                    key={i}
-                    className="flex-1 rounded-full h-full"
-                    style={{
-                        backgroundColor: i <= current ? '#FFFFFF' : 'rgba(255,255,255,0.2)',
-                        opacity: i <= current ? 1 : 0.5
-                    }}
-                />
+        <View style={styles.progressContainer}>
+            {[1, 2, 3, 4].map((i, idx) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={[styles.progressCircle, i <= current && styles.progressCircleActive]}>
+                        {i < current ? (
+                            <Ionicons name="checkmark" size={14} color="#FFF" />
+                        ) : (
+                            <Text style={[styles.progressNum, i <= current && styles.progressNumActive]}>{i}</Text>
+                        )}
+                    </View>
+                    {idx < 3 && <View style={[styles.progressLine, i < current && styles.progressLineActive]} />}
+                </View>
             ))}
         </View>
     );
@@ -232,7 +169,6 @@ const HeaderProgress = ({ current, total }: { current: number, total: number }) 
 
 export default function ResolutionOnboarding() {
     const router = useRouter();
-    const { width } = useWindowDimensions();
     const { isPremium } = useSubscription();
     const { isSignedIn } = useAuth();
     const { isGuest, addGuestResolution, isLoading: isGuestLoading, completeGuestOnboarding, hasCompletedOnboarding } = useGuest();
@@ -241,7 +177,6 @@ export default function ResolutionOnboarding() {
     const [submitting, setSubmitting] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
 
-    // Data
     const user = useQuery(api.users.currentUser);
     const categories = useQuery(api.categories.list);
     const [selectedCategory, setSelectedCategory] = useState<CategoryKey | null>(null);
@@ -250,7 +185,6 @@ export default function ResolutionOnboarding() {
         selectedCategory ? { categoryKey: selectedCategory } : "skip"
     );
 
-    // Form
     const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
     const [customTitle, setCustomTitle] = useState('');
     const [isCustom, setIsCustom] = useState(false);
@@ -266,7 +200,6 @@ export default function ResolutionOnboarding() {
     const createResolution = useMutation(api.userResolutions.create);
     const completeOnboarding = useMutation(api.users.completeOnboarding);
 
-    // Logic Functions (Identical to original)
     const handleNumberInput = (text: string, setter: (val: number) => void) => {
         const cleanText = text.replace(/[^0-9]/g, '');
         if (cleanText === '') setter(0);
@@ -355,8 +288,6 @@ export default function ResolutionOnboarding() {
             });
 
             await completeOnboarding({ is_onboarded: true });
-
-            // Navigation handled by _layout.tsx reactive listener
             return true;
         } catch (error: any) {
             console.error("Resolution Creation Error:", error);
@@ -368,9 +299,7 @@ export default function ResolutionOnboarding() {
     };
 
     const handleFinish = async () => {
-        // Initialize resolution in background
         const promise = submitResolution(false);
-
         if (!isPremium) {
             setShowPaywall(true);
         } else {
@@ -379,50 +308,36 @@ export default function ResolutionOnboarding() {
         }
     };
 
-    // --- Render Steps (Visual Redesign) ---
+    // --- Render Steps ---
 
     const renderStep1_Categories = () => (
         <Animated.View entering={FadeInRight.springify()} exiting={FadeOutLeft}>
-            <Text className="text-3xl font-inter-bold text-center leading-tight mb-3" style={{ color: '#FFFFFF' }}>Focus Area</Text>
-            <Text className="font-inter-medium text-base text-center leading-relaxed mb-8" style={{ color: 'rgba(255,255,255,0.7)' }}>What aspect of your life needs a reset?</Text>
+            <View style={styles.stepHeader}>
+                <Text style={styles.stepEmoji}>🎯</Text>
+                <Text style={styles.stepLabel}>STEP 1 OF 4</Text>
+            </View>
+            <Text style={styles.stepTitle}>Pick Your Focus</Text>
+            <Text style={styles.stepSubtitle}>What part of your life are you ready to transform?</Text>
 
-            <View className="gap-4">
+            <View style={{ gap: 10, marginTop: 28 }}>
                 {!categories ? (
-                    [1, 2, 3, 4, 5].map((i) => <Skeleton key={i} width="100%" height={88} />)
+                    [1, 2, 3, 4, 5].map((i) => <Skeleton key={i} width="100%" height={76} />)
                 ) : (
                     categories.map((cat: any, index: number) => {
                         const config = CATEGORY_CONFIG[cat.key] || CATEGORY_CONFIG.default;
-
                         return (
-                            <TouchableOpacity
-                                key={cat.key}
-                                onPress={() => handleCategorySelect(cat.key)}
-                                activeOpacity={0.8}
-                            >
-                                <Animated.View
-                                    entering={FadeInDown.delay(index * 50).duration(400)}
-                                >
-                                    <View
-                                        style={{
-                                            backgroundColor: 'rgba(255,255,255,0.1)',
-                                            borderRadius: 28,
-                                            padding: 20,
-                                            borderWidth: 1,
-                                            borderColor: 'rgba(255,255,255,0.15)'
-                                        }}
-                                    >
-                                        <View className="flex-row items-center gap-5">
-                                            <View
-                                                style={{ backgroundColor: config.bgColor }}
-                                                className="w-16 h-16 rounded-[20px] items-center justify-center"
-                                            >
-                                                <Ionicons name={config.icon} size={32} color={config.color} />
-                                            </View>
-                                            <View className="flex-1">
-                                                <Text className="font-inter-bold text-base" style={{ color: '#FFFFFF' }}>{cat.name}</Text>
-                                                <Text className="text-sm font-inter-medium leading-5" style={{ color: 'rgba(255,255,255,0.6)' }}>{cat.description}</Text>
-                                            </View>
-                                            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.3)" />
+                            <TouchableOpacity key={cat.key} onPress={() => handleCategorySelect(cat.key)} activeOpacity={0.7}>
+                                <Animated.View entering={FadeInDown.delay(index * 60).duration(400)}>
+                                    <View style={styles.categoryCard}>
+                                        <View style={[styles.categoryIcon, { backgroundColor: config.bgColor }]}>
+                                            <Text style={{ fontSize: 26 }}>{config.emoji}</Text>
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.categoryTitle}>{cat.name}</Text>
+                                            <Text style={styles.categoryDesc}>{cat.description}</Text>
+                                        </View>
+                                        <View style={styles.categoryArrow}>
+                                            <Ionicons name="arrow-forward" size={16} color={ACCENT_ORANGE} />
                                         </View>
                                     </View>
                                 </Animated.View>
@@ -436,43 +351,39 @@ export default function ResolutionOnboarding() {
 
     const renderStep2_Templates = () => (
         <Animated.View entering={FadeInRight.springify()} exiting={FadeOutLeft}>
-            <Text className="text-3xl font-inter-bold text-center leading-tight mb-3" style={{ color: '#FFFFFF' }}>Choose Goal</Text>
-            <Text className="font-inter-medium text-base text-center leading-relaxed mb-8" style={{ color: 'rgba(255,255,255,0.7)' }}>Select a template or build your own.</Text>
+            <View style={styles.stepHeader}>
+                <Text style={styles.stepEmoji}>📝</Text>
+                <Text style={styles.stepLabel}>STEP 2 OF 4</Text>
+            </View>
+            <Text style={styles.stepTitle}>Choose Your Goal</Text>
+            <Text style={styles.stepSubtitle}>Start with a template or create your own</Text>
 
-            <TouchableOpacity onPress={handleCustomResolution} className="mb-8" activeOpacity={0.8}>
-                <View
-                    style={{
-                        backgroundColor: 'rgba(255,255,255,0.05)',
-                        borderRadius: 24,
-                        padding: 20,
-                        borderWidth: 1,
-                        borderColor: 'rgba(255,255,255,0.2)',
-                        borderStyle: 'dashed'
-                    }}
-                >
-                    <View className="flex-row items-center gap-4">
-                        <View className="w-14 h-14 rounded-2xl bg-white/10 items-center justify-center">
-                            <Ionicons name="add-circle" size={32} color="#FFFFFF" />
-                        </View>
-                        <View className="flex-1">
-                            <Text className="font-inter-bold text-base" style={{ color: '#FFFFFF' }}>Create Custom</Text>
-                            <Text className="text-sm font-inter-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>Design your own habit</Text>
-                        </View>
+            <TouchableOpacity onPress={handleCustomResolution} style={{ marginTop: 28, marginBottom: 24 }} activeOpacity={0.8}>
+                <View style={styles.customCard}>
+                    <View style={styles.customIcon}>
+                        <Text style={{ fontSize: 24 }}>✨</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.customTitle}>Create Custom Goal</Text>
+                        <Text style={styles.customSubtitle}>Build something unique</Text>
+                    </View>
+                    <View style={styles.customArrow}>
+                        <Ionicons name="arrow-forward" size={16} color={ACCENT_ORANGE} />
                     </View>
                 </View>
             </TouchableOpacity>
 
-            <Text className="text-xs font-inter-bold uppercase tracking-widest mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>Popular Options</Text>
+            <Text style={styles.sectionLabel}>Popular Options</Text>
 
             {!templates ? (
-                [1, 2, 3].map(i => <Skeleton key={i} width="100%" height={88} style={{ marginBottom: 12 }} />)
+                [1, 2, 3].map(i => <Skeleton key={i} width="100%" height={72} style={{ marginBottom: 12 }} />)
             ) : (
                 templates.filter((t: any) => t.isPopular).map((template: any, index: number) => (
                     <Animated.View key={template._id} entering={FadeInDown.delay(index * 80).springify()}>
                         <SelectionCard
                             title={template.title}
                             subtitle={template.description}
-                            icon="star-outline"
+                            emoji="⭐"
                             onPress={() => handleTemplateSelect(template)}
                             selected={false}
                         />
@@ -485,113 +396,73 @@ export default function ResolutionOnboarding() {
     const renderStep3_Frequency = () => (
         <Animated.View entering={FadeInRight.springify()} exiting={FadeOutLeft}>
             {isCustom && (
-                <View className="mb-6">
-                    <CustomInput
-                        label="Name your goal"
-                        placeholder="e.g. Morning Meditation"
-                        value={customTitle}
-                        onChangeText={setCustomTitle}
-                        autoFocus={true}
-                    />
-                </View>
+                <CustomInput
+                    label="Name your goal"
+                    placeholder="e.g. Morning Meditation"
+                    value={customTitle}
+                    onChangeText={setCustomTitle}
+                    autoFocus={true}
+                />
             )}
 
-            <Text className="text-3xl font-inter-bold text-center leading-tight mb-3" style={{ color: '#FFFFFF' }}>Routine</Text>
-            <Text className="font-inter-medium text-base text-center leading-relaxed mb-8" style={{ color: 'rgba(255,255,255,0.7)' }}>When will you perform this action?</Text>
+            <View style={styles.stepHeader}>
+                <Text style={styles.stepEmoji}>📅</Text>
+                <Text style={styles.stepLabel}>STEP 3 OF 4</Text>
+            </View>
+            <Text style={styles.stepTitle}>Set Your Routine</Text>
+            <Text style={styles.stepSubtitle}>When will you take action?</Text>
 
-            <Animated.View entering={FadeInDown.delay(100).springify()}>
-                <SelectionCard title="Every Day" subtitle="Perfect for building habits" icon="infinite" selected={frequencyType === 'daily'} onPress={() => setFrequencyType('daily')} />
-            </Animated.View>
-            <Animated.View entering={FadeInDown.delay(150).springify()}>
-                <SelectionCard title="Weekdays" subtitle="Monday through Friday" icon="briefcase-outline" selected={frequencyType === 'weekdays'} onPress={() => setFrequencyType('weekdays')} />
-            </Animated.View>
-            <Animated.View entering={FadeInDown.delay(200).springify()}>
-                <SelectionCard title="Weekends" subtitle="Saturday & Sunday only" icon="cafe-outline" selected={frequencyType === 'weekends'} onPress={() => setFrequencyType('weekends')} />
-            </Animated.View>
-            <Animated.View entering={FadeInDown.delay(250).springify()}>
-                <SelectionCard title="Specific Days" subtitle="Custom weekly schedule" icon="calendar-outline" selected={frequencyType === 'custom'} onPress={() => setFrequencyType('custom')} />
-            </Animated.View>
+            <View style={{ marginTop: 24 }}>
+                <SelectionCard title="Every Day" subtitle="Perfect for building habits" emoji="♾️" selected={frequencyType === 'daily'} onPress={() => setFrequencyType('daily')} />
+                <SelectionCard title="Weekdays" subtitle="Monday through Friday" emoji="💼" selected={frequencyType === 'weekdays'} onPress={() => setFrequencyType('weekdays')} />
+                <SelectionCard title="Weekends" subtitle="Saturday & Sunday only" emoji="☕" selected={frequencyType === 'weekends'} onPress={() => setFrequencyType('weekends')} />
+                <SelectionCard title="Specific Days" subtitle="Custom weekly schedule" emoji="📅" selected={frequencyType === 'custom'} onPress={() => setFrequencyType('custom')} />
+            </View>
 
             {frequencyType === 'custom' && (
-                <Animated.View entering={FadeInDown.springify()}>
+                <Animated.View entering={FadeInDown}>
                     <SimpleDaySelector selectedDays={customDays} toggleDay={toggleCustomDay} />
                 </Animated.View>
             )}
 
-            <View className="mt-10">
-                <TouchableOpacity onPress={() => setStep(4)} activeOpacity={0.8}>
-                    <View
-                        style={{
-                            borderRadius: 100,
-                            height: 60,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: '#FFFFFF',
-                            shadowColor: '#000',
-                            shadowOffset: { width: 0, height: 8 },
-                            shadowOpacity: 0.1,
-                            shadowRadius: 16,
-                            elevation: 8,
-                        }}
-                    >
-                        <Text className="text-[#3A7AFE] font-inter-bold text-base">Continue</Text>
-                    </View>
-                </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={() => setStep(4)} style={styles.continueButton} activeOpacity={0.8}>
+                <Text style={styles.continueText}>Continue</Text>
+            </TouchableOpacity>
         </Animated.View>
     );
 
     const renderStep4_Tracking = () => (
         <Animated.View entering={FadeInRight.springify()} exiting={FadeOutLeft}>
-            <Text className="text-3xl font-inter-bold text-center leading-tight mb-3" style={{ color: '#FFFFFF' }}>Measurement</Text>
-            <Text className="font-inter-medium text-base text-center leading-relaxed mb-8" style={{ color: 'rgba(255,255,255,0.7)' }}>Define success for your daily goal.</Text>
-
-            <Animated.View entering={FadeInDown.delay(100).springify()}>
-                <SelectionCard title="Completion Only" subtitle="Simple checkbox" icon="checkmark-circle-outline" selected={trackingType === 'yes_no'} onPress={() => setTrackingType('yes_no')} />
-            </Animated.View>
-            <Animated.View entering={FadeInDown.delay(150).springify()}>
-                <SelectionCard title="Time Duration" subtitle="Track minutes spent" icon="timer-outline" selected={trackingType === 'time_based'} onPress={() => setTrackingType('time_based')} />
-            </Animated.View>
-
-            {trackingType === 'time_based' && (
-                <Animated.View entering={FadeInDown} className="mb-6">
-                    <BigNumberInput value={String(targetTime)} onChangeText={(t: string) => handleNumberInput(t, setTargetTime)} suffix="Min" />
-                </Animated.View>
-            )}
-
-            <Animated.View entering={FadeInDown.delay(200).springify()}>
-                <SelectionCard title="Numeric Count" subtitle="Reps, pages, units" icon="stats-chart-outline" selected={trackingType === 'count_based'} onPress={() => setTrackingType('count_based')} />
-            </Animated.View>
-
-            {trackingType === 'count_based' && (
-                <Animated.View entering={FadeInDown} className="mb-6">
-                    <BigNumberInput value={String(targetCount)} onChangeText={(t: string) => handleNumberInput(t, setTargetCount)} suffix={countUnit} />
-                    <View className="mt-2">
-                        <CustomInput label="Unit Name" placeholder="e.g. Pages" value={countUnit} onChangeText={setCountUnit} />
-                    </View>
-                </Animated.View>
-            )}
-
-            <View className="mt-10">
-                <TouchableOpacity onPress={() => setStep(5)} activeOpacity={0.8}>
-                    <View
-                        style={{
-                            borderRadius: 100,
-                            height: 60,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: '#FFFFFF',
-                            shadowColor: '#000',
-                            shadowOffset: { width: 0, height: 8 },
-                            shadowOpacity: 0.1,
-                            shadowRadius: 16,
-                            elevation: 8,
-                        }}
-                    >
-                        <Text className="text-[#3A7AFE] font-inter-bold text-base">Continue</Text>
-                    </View>
-                </TouchableOpacity>
+            <View style={styles.stepHeader}>
+                <Text style={styles.stepEmoji}>⚡</Text>
+                <Text style={styles.stepLabel}>STEP 4 OF 4</Text>
             </View>
+            <Text style={styles.stepTitle}>Track Progress</Text>
+            <Text style={styles.stepSubtitle}>How will you measure success?</Text>
+
+            <View style={{ marginTop: 24 }}>
+                <SelectionCard title="Completion Only" subtitle="Simple checkbox" emoji="✅" selected={trackingType === 'yes_no'} onPress={() => setTrackingType('yes_no')} />
+                <SelectionCard title="Time Duration" subtitle="Track minutes spent" emoji="⏱️" selected={trackingType === 'time_based'} onPress={() => setTrackingType('time_based')} />
+
+                {trackingType === 'time_based' && (
+                    <Animated.View entering={FadeInDown}>
+                        <BigNumberInput value={String(targetTime)} onChangeText={(t: string) => handleNumberInput(t, setTargetTime)} suffix="Min" />
+                    </Animated.View>
+                )}
+
+                <SelectionCard title="Numeric Count" subtitle="Reps, pages, units" emoji="🔢" selected={trackingType === 'count_based'} onPress={() => setTrackingType('count_based')} />
+
+                {trackingType === 'count_based' && (
+                    <Animated.View entering={FadeInDown}>
+                        <BigNumberInput value={String(targetCount)} onChangeText={(t: string) => handleNumberInput(t, setTargetCount)} suffix={countUnit} />
+                        <CustomInput label="Unit Name" placeholder="e.g. Pages" value={countUnit} onChangeText={setCountUnit} />
+                    </Animated.View>
+                )}
+            </View>
+
+            <TouchableOpacity onPress={() => setStep(5)} style={styles.continueButton} activeOpacity={0.8}>
+                <Text style={styles.continueText}>Continue</Text>
+            </TouchableOpacity>
         </Animated.View>
     );
 
@@ -599,166 +470,98 @@ export default function ResolutionOnboarding() {
         const catConfig = selectedCategory ? CATEGORY_CONFIG[selectedCategory] : CATEGORY_CONFIG.default;
 
         return (
-            <Animated.View entering={FadeInRight.delay(100).springify()} exiting={FadeOutLeft} className="flex-1 justify-center pb-8">
-
-                {/* Header Text */}
-                <View className="items-center mb-10">
-                    <Text className="font-inter-medium text-xs uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.6)' }}>Review Quest</Text>
-                    <Text className="font-inter-bold text-4xl text-center leading-tight mb-2" style={{ color: '#FFFFFF' }}>Ready to Commit?</Text>
-                    <Text className="font-inter-medium text-base text-center" style={{ color: 'rgba(255,255,255,0.7)' }}>Your journey starts now</Text>
+            <Animated.View entering={FadeInRight.delay(100).springify()} exiting={FadeOutLeft} style={{ flex: 1 }}>
+                <View style={{ alignItems: 'center', marginBottom: 32 }}>
+                    <Text style={styles.reviewLabel}>REVIEW</Text>
+                    <Text style={styles.reviewTitle}>Ready to Commit?</Text>
+                    <Text style={styles.reviewSubtitle}>Your journey starts now</Text>
                 </View>
 
-                {/* Main Card */}
-                <View
-                    style={{
-                        borderRadius: 32,
-                        backgroundColor: '#FFFFFF',
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 12 },
-                        shadowOpacity: 0.08,
-                        shadowRadius: 24,
-                        elevation: 10,
-                        overflow: 'hidden'
-                    }}
-                >
-                    {/* Card Header (Colored) */}
-                    <View style={{ backgroundColor: catConfig.bgColor }} className="p-8 pb-8">
-                        <View className="flex-row justify-between items-start mb-8">
-                            <View
-                                style={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
-                                className="px-4 py-2 rounded-full border border-white/40"
-                            >
-                                <Text style={{ color: catConfig.color }} className="text-xs font-inter-bold uppercase tracking-wider">
-                                    {selectedCategory}
-                                </Text>
-                            </View>
-                            <View style={{ backgroundColor: 'rgba(255,255,255,0.8)' }} className="w-12 h-12 rounded-full items-center justify-center">
-                                <Ionicons name={catConfig.icon} size={24} color={catConfig.color} />
-                            </View>
+                <View style={styles.summaryCard}>
+                    <View style={[styles.summaryHeader, { backgroundColor: catConfig.bgColor }]}>
+                        <View style={styles.summaryBadge}>
+                            <Text style={[styles.summaryBadgeText, { color: catConfig.color }]}>
+                                {selectedCategory?.toUpperCase()}
+                            </Text>
                         </View>
+                        <Text style={{ fontSize: 32 }}>{catConfig.emoji}</Text>
+                    </View>
+                    <Text style={styles.summaryTitle}>
+                        {isCustom ? customTitle || 'New Goal' : selectedTemplate?.title}
+                    </Text>
 
-                        <Text style={{ color: '#1E293B' }} className="font-inter-bold text-[32px] leading-[38px]">
-                            {isCustom ? customTitle || 'New Goal' : selectedTemplate?.title}
-                        </Text>
+                    <View style={styles.summaryStats}>
+                        <View style={styles.statBox}>
+                            <Text style={{ fontSize: 16 }}>📅</Text>
+                            <Text style={styles.statLabel}>Frequency</Text>
+                            <Text style={styles.statValue}>
+                                {frequencyType === 'daily' ? 'Daily' :
+                                    frequencyType === 'weekdays' ? 'Weekdays' :
+                                        frequencyType === 'weekends' ? 'Weekends' : 'Custom'}
+                            </Text>
+                        </View>
+                        <View style={styles.statBox}>
+                            <Text style={{ fontSize: 16 }}>🎯</Text>
+                            <Text style={styles.statLabel}>Target</Text>
+                            <Text style={styles.statValue}>
+                                {trackingType === 'yes_no' ? 'Complete' : trackingType === 'time_based' ? `${targetTime} Min` : `${targetCount} ${countUnit}`}
+                            </Text>
+                        </View>
                     </View>
 
-                    {/* Card Body (White) */}
-                    <View className="p-8 pt-6">
-                        {/* Stats Grid */}
-                        <View className="gap-3 mb-6">
-                            <View className="flex-1 p-4 rounded-2xl" style={{ backgroundColor: '#FAFAFA' }}>
-                                <View className="flex-row items-center gap-2 mb-2">
-                                    <Ionicons name="calendar" size={16} color="#F97316" />
-                                    <Text className="text-[10px] font-inter-bold uppercase tracking-wider" style={{ color: '#999' }}>Frequency</Text>
-                                </View>
-                                <Text className="font-inter-bold text-base" style={{ color: '#1E293B' }}>
-                                    {frequencyType === 'daily' ? 'Daily' :
-                                        frequencyType === 'weekdays' ? 'Weekdays' :
-                                            frequencyType === 'weekends' ? 'Weekends' : 'Custom'}
-                                </Text>
-                            </View>
-                            <View className="flex-1 p-4 rounded-2xl" style={{ backgroundColor: '#FAFAFA' }}>
-                                <View className="flex-row items-center gap-2 mb-2">
-                                    <Ionicons name="flag" size={16} color="#F97316" />
-                                    <Text className="text-[10px] font-inter-bold uppercase tracking-wider" style={{ color: '#999' }}>Target</Text>
-                                </View>
-                                <Text className="font-inter-bold text-base" style={{ color: '#1E293B' }}>
-                                    {trackingType === 'yes_no' ? 'Complete' : trackingType === 'time_based' ? `${targetTime} Mins` : `${targetCount} ${countUnit}`}
-                                </Text>
-                            </View>
-                        </View>
-
-                        {/* Character Unlock Message */}
-                        <View className="flex-row items-center gap-3 p-4 rounded-2xl" style={{ backgroundColor: '#FFF4ED' }}>
-                            <View className="w-12 h-12 rounded-full items-center justify-center" style={{ backgroundColor: '#FFEDD5' }}>
-                                <Text className="text-2xl">🎯</Text>
-                            </View>
-                            <View className="flex-1">
-                                <Text className="font-inter-bold text-sm" style={{ color: '#1E293B' }}>Complete to unlock characters</Text>
-                                <Text className="font-inter-medium text-xs mt-0.5" style={{ color: '#64748B' }}>Build streaks and evolve your character</Text>
-                            </View>
+                    <View style={styles.hintBox}>
+                        <Text style={{ fontSize: 20 }}>🎴</Text>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Text style={styles.hintTitle}>Complete to unlock characters</Text>
+                            <Text style={styles.hintSubtitle}>Build streaks and evolve your character</Text>
                         </View>
                     </View>
                 </View>
 
-                {/* Primary Action */}
-                <View className="w-full mt-10">
-                    <TouchableOpacity
-                        onPress={handleFinish}
-                        disabled={submitting}
-                        activeOpacity={0.8}
-                    >
-                        <Animated.View
-                            entering={FadeInDown.delay(300).springify()}
-                            style={{
-                                borderRadius: 100,
-                                height: 72,
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                backgroundColor: '#FFFFFF',
-                                shadowColor: '#000',
-                                shadowOffset: { width: 0, height: 12 },
-                                shadowOpacity: 0.15,
-                                shadowRadius: 20,
-                                elevation: 8,
-                                flexDirection: 'row',
-                                gap: 10
-                            }}
-                        >
-                            {submitting ? (
-                                <ActivityIndicator color="#3A7AFE" />
-                            ) : (
-                                <>
-                                    <Text className="text-[#3A7AFE] font-inter-bold text-xl">Initialize Resolution</Text>
-                                    <Ionicons name="arrow-forward" size={24} color="#3A7AFE" />
-                                </>
-                            )}
-                        </Animated.View>
-                    </TouchableOpacity>
+                <TouchableOpacity onPress={handleFinish} disabled={submitting} style={styles.finishButton} activeOpacity={0.8}>
+                    {submitting ? (
+                        <ActivityIndicator color="#FFF" />
+                    ) : (
+                        <>
+                            <Text style={styles.finishText}>Initialize Resolution</Text>
+                            <Ionicons name="arrow-forward" size={22} color="#FFF" />
+                        </>
+                    )}
+                </TouchableOpacity>
 
-                    <TouchableOpacity onPress={() => setStep(4)} className="mt-6 items-center py-2">
-                        <Text className="font-inter-bold text-white/50 text-xs uppercase tracking-widest">Edit Details</Text>
-                    </TouchableOpacity>
-                </View>
+                <TouchableOpacity onPress={() => setStep(4)} style={{ alignItems: 'center', paddingVertical: 16 }}>
+                    <Text style={styles.editLink}>Edit Details</Text>
+                </TouchableOpacity>
             </Animated.View>
         );
-    }
+    };
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#3A7AFE' }}>
-            <SafeAreaView className="flex-1">
-                {/* Global Header */}
-                <View className="px-6 py-2 flex-row items-center justify-between h-14 z-10">
-                    <View style={{ width: 40 }}>
+        <View style={styles.container}>
+            <StatusBar style="dark" />
+            <SafeAreaView style={{ flex: 1 }}>
+                <View style={styles.header}>
+                    <View style={{ width: 44 }}>
                         {step > 1 && step < 5 && (
-                            <TouchableOpacity
-                                onPress={() => setStep(step - 1)}
-                                className="w-10 h-10 rounded-full bg-white/10 items-center justify-center border border-white/10"
-                            >
-                                <Ionicons name="arrow-back" size={20} color="white" />
+                            <TouchableOpacity onPress={() => setStep(step - 1)} style={styles.backButton}>
+                                <Ionicons name="chevron-back" size={22} color={TEXT_PRIMARY} />
                             </TouchableOpacity>
                         )}
                     </View>
-
-                    {/* Progress Bar */}
-                    {step < 5 && (
-                        <HeaderProgress current={step} total={4} />
-                    )}
-
-                    <View style={{ width: 40 }} />
+                    {step < 5 && <HeaderProgress current={step} />}
+                    <View style={{ width: 44 }} />
                 </View>
 
-                {/* Scroll Content */}
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                     <ScrollView
-                        className="flex-1 px-6"
+                        style={{ flex: 1, paddingHorizontal: 24 }}
                         showsVerticalScrollIndicator={false}
-                        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, paddingTop: 20 }}
+                        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, paddingTop: 8 }}
                     >
-                        <View className="w-full max-w-[420px] self-center">
+                        <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
                             {isGuestLoading ? (
-                                <View className="flex-1 items-center justify-center pt-20">
-                                    <ActivityIndicator size="large" color="white" />
+                                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 }}>
+                                    <ActivityIndicator size="large" color={ACCENT_ORANGE} />
                                 </View>
                             ) : (
                                 <>
@@ -787,3 +590,452 @@ export default function ResolutionOnboarding() {
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: BG_COLOR,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+    },
+    backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#F3F4F6',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    progressContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flex: 1,
+    },
+    progressCircle: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#F3F4F6',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    progressCircleActive: {
+        backgroundColor: ACCENT_ORANGE,
+    },
+    progressNum: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 12,
+        color: TEXT_SECONDARY,
+    },
+    progressNumActive: {
+        color: '#FFFFFF',
+    },
+    progressLine: {
+        width: 32,
+        height: 2,
+        backgroundColor: '#E5E7EB',
+        marginHorizontal: 4,
+    },
+    progressLineActive: {
+        backgroundColor: ACCENT_ORANGE,
+    },
+    progressRow: {
+        flexDirection: 'row',
+        gap: 8,
+        flex: 1,
+        justifyContent: 'center',
+    },
+    progressDot: {
+        width: 40,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#E5E7EB',
+    },
+    progressDotActive: {
+        backgroundColor: ACCENT_ORANGE,
+    },
+    stepHeader: {
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    stepEmoji: {
+        fontSize: 40,
+        marginBottom: 12,
+    },
+    stepLabel: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 11,
+        color: ACCENT_ORANGE,
+        letterSpacing: 2,
+    },
+    stepTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 28,
+        color: TEXT_PRIMARY,
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    stepSubtitle: {
+        fontFamily: 'Nunito-Medium',
+        fontSize: 15,
+        color: TEXT_SECONDARY,
+        textAlign: 'center',
+    },
+    categoryCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 999,
+        padding: 16,
+        gap: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    categoryIcon: {
+        width: 56,
+        height: 56,
+        borderRadius: 999,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    categoryTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 16,
+        color: TEXT_PRIMARY,
+        marginBottom: 2,
+    },
+    categoryDesc: {
+        fontFamily: 'Nunito-Medium',
+        fontSize: 13,
+        color: TEXT_SECONDARY,
+    },
+    categoryArrow: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#FFF7ED',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    customCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF7ED',
+        borderRadius: 999,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: '#FDBA74',
+        borderStyle: 'dashed',
+        gap: 16,
+    },
+    customIcon: {
+        width: 52,
+        height: 52,
+        borderRadius: 999,
+        backgroundColor: '#FFEDD5',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    customTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 16,
+        color: TEXT_PRIMARY,
+    },
+    customSubtitle: {
+        fontFamily: 'Nunito-Medium',
+        fontSize: 13,
+        color: TEXT_SECONDARY,
+    },
+    customArrow: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#FFEDD5',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    sectionLabel: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 12,
+        color: TEXT_SECONDARY,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: 16,
+    },
+    selectionCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 999,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        gap: 14,
+    },
+    selectionCardSelected: {
+        borderColor: ACCENT_ORANGE,
+        backgroundColor: '#FFF7ED',
+    },
+    selectionIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 999,
+        backgroundColor: '#F9FAFB',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    selectionIconSelected: {
+        backgroundColor: '#FFEDD5',
+    },
+    selectionTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 15,
+        color: TEXT_PRIMARY,
+    },
+    selectionSubtitle: {
+        fontFamily: 'Nunito-Medium',
+        fontSize: 13,
+        color: TEXT_SECONDARY,
+        marginTop: 2,
+    },
+    daySelectorContainer: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 999,
+        padding: 20,
+        marginTop: 16,
+    },
+    daySelectorLabel: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 12,
+        color: TEXT_SECONDARY,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    daySelectorRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    dayCircle: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#F3F4F6',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dayCircleSelected: {
+        backgroundColor: ACCENT_ORANGE,
+    },
+    dayText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 14,
+        color: TEXT_SECONDARY,
+    },
+    dayTextSelected: {
+        color: '#FFFFFF',
+    },
+    continueButton: {
+        backgroundColor: ACCENT_ORANGE,
+        borderRadius: 999,
+        paddingVertical: 18,
+        alignItems: 'center',
+        marginTop: 32,
+        shadowColor: ACCENT_ORANGE,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 4,
+    },
+    continueText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 16,
+        color: '#FFFFFF',
+    },
+    inputLabel: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 12,
+        color: TEXT_SECONDARY,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 8,
+    },
+    inputContainer: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 999,
+        paddingHorizontal: 20,
+        height: 56,
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    inputContainerActive: {
+        borderColor: ACCENT_ORANGE,
+    },
+    inputText: {
+        fontFamily: 'Nunito-SemiBold',
+        fontSize: 16,
+        color: TEXT_PRIMARY,
+    },
+    bigNumberContainer: {
+        alignItems: 'center',
+        paddingVertical: 16,
+    },
+    bigNumberBox: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 999,
+        paddingHorizontal: 24,
+        paddingVertical: 16,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    bigNumberInput: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 36,
+        color: TEXT_PRIMARY,
+        minWidth: 60,
+        textAlign: 'center',
+    },
+    bigNumberSuffix: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 18,
+        color: TEXT_SECONDARY,
+        marginLeft: 8,
+    },
+    reviewLabel: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 11,
+        color: TEXT_SECONDARY,
+        letterSpacing: 2,
+        marginBottom: 8,
+    },
+    reviewTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 30,
+        color: TEXT_PRIMARY,
+        marginBottom: 8,
+    },
+    reviewSubtitle: {
+        fontFamily: 'Nunito-Medium',
+        fontSize: 15,
+        color: TEXT_SECONDARY,
+    },
+    summaryCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 28,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.08,
+        shadowRadius: 24,
+        elevation: 6,
+    },
+    summaryHeader: {
+        padding: 24,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+    },
+    summaryBadge: {
+        backgroundColor: 'rgba(255,255,255,0.8)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 999,
+    },
+    summaryBadgeText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 11,
+        letterSpacing: 1,
+    },
+    summaryTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 24,
+        color: TEXT_PRIMARY,
+        paddingHorizontal: 24,
+        paddingBottom: 20,
+    },
+    summaryStats: {
+        flexDirection: 'row',
+        gap: 12,
+        paddingHorizontal: 24,
+        marginBottom: 20,
+    },
+    statBox: {
+        flex: 1,
+        backgroundColor: '#F9FAFB',
+        borderRadius: 999,
+        padding: 16,
+        alignItems: 'center',
+    },
+    statLabel: {
+        fontFamily: 'Nunito-Medium',
+        fontSize: 11,
+        color: TEXT_SECONDARY,
+        marginTop: 6,
+    },
+    statValue: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 14,
+        color: TEXT_PRIMARY,
+        marginTop: 2,
+    },
+    hintBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFF7ED',
+        marginHorizontal: 24,
+        marginBottom: 24,
+        padding: 16,
+        borderRadius: 999,
+    },
+    hintTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 14,
+        color: TEXT_PRIMARY,
+    },
+    hintSubtitle: {
+        fontFamily: 'Nunito-Medium',
+        fontSize: 12,
+        color: TEXT_SECONDARY,
+        marginTop: 2,
+    },
+    finishButton: {
+        backgroundColor: ACCENT_ORANGE,
+        borderRadius: 999,
+        paddingVertical: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        marginTop: 24,
+        shadowColor: ACCENT_ORANGE,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
+        elevation: 6,
+    },
+    finishText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 18,
+        color: '#FFFFFF',
+    },
+    editLink: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 13,
+        color: TEXT_SECONDARY,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+});

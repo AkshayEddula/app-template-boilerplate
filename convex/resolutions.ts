@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { mutation, query } from "./_generated/server";
 
 // --- GAMIFICATION CONSTANTS ---
 const DAILY_MAX_BASE_XP = 100;
@@ -186,12 +186,10 @@ export const logProgress = mutation({
       });
     }
 
-    let instantBonusXp = 0;
-    if (isCompleted && !wasAlreadyCompleted) {
-      instantBonusXp += XP_PER_COMPLETION;
-    }
+    // 4. Streak Engine & Bonus Calculation
+    let bonusXp = 0;
+    let newUserStreak = 0;
 
-    // 4. Streak Engine
     if (isCompleted && !wasAlreadyCompleted) {
       const lastResDate = resolution.lastCompletedDate;
       const previousScheduled = getPreviousScheduledDate(resolution, args.date);
@@ -206,7 +204,6 @@ export const logProgress = mutation({
         newResStreak = 1;
       }
 
-      // Calculate Best Streak
       const currentBest = resolution.bestStreak || 0;
       const newBestStreak = Math.max(newResStreak, currentBest);
 
@@ -224,24 +221,23 @@ export const logProgress = mutation({
         const lastUserDate = user.lastCompletedDate;
         const yesterday = getYesterday(args.date);
 
-        let newUserStreak = user.currentStreak || 0;
-        let streakIncremented = false;
+        newUserStreak = user.currentStreak || 0;
+        let isNewDayStreak = false;
 
         if (lastUserDate === args.date) {
-          // Already counted today
+          // Already counted today, keep current streak
+          newUserStreak = user.currentStreak || 1;
         } else if (lastUserDate === yesterday) {
           newUserStreak += 1;
-          streakIncremented = true;
+          isNewDayStreak = true;
         } else {
           newUserStreak = 1;
-          streakIncremented = true;
+          isNewDayStreak = true;
         }
 
-        if (streakIncremented) {
-          instantBonusXp += XP_DAILY_STREAK;
-          if (MILESTONE_BONUSES[newUserStreak]) {
-            instantBonusXp += MILESTONE_BONUSES[newUserStreak];
-          }
+        // Add streak milestone bonus (only on the day you hit it)
+        if (isNewDayStreak && MILESTONE_BONUSES[newUserStreak]) {
+          bonusXp += MILESTONE_BONUSES[newUserStreak];
         }
 
         await ctx.db.patch(user._id, {
@@ -280,12 +276,12 @@ export const logProgress = mutation({
     }
 
     const totalCount = todaysResolutions.length;
-    const completionPercentage =
-      totalCount === 0 ? 0 : completedCount / totalCount;
-    const currentBaseXpState = Math.round(
-      completionPercentage * DAILY_MAX_BASE_XP,
-    );
+    const completionPercentage = totalCount === 0 ? 0 : completedCount / totalCount;
 
+    // Base XP = percentage of max 100
+    const baseXp = Math.round(completionPercentage * DAILY_MAX_BASE_XP);
+
+    // Get existing daily stat
     const existingDailyStat = await ctx.db
       .query("dailyCategoryStats")
       .withIndex("by_user_category_date", (q) =>
@@ -296,27 +292,28 @@ export const logProgress = mutation({
       )
       .first();
 
-    let previousBaseXpState = 0;
-    if (existingDailyStat) {
-      const prevCompletedCount =
-        isCompleted && !wasAlreadyCompleted
-          ? completedCount - 1
-          : !isCompleted && wasAlreadyCompleted
-            ? completedCount + 1
-            : completedCount;
-
-      const prevPercentage =
-        totalCount === 0 ? 0 : prevCompletedCount / totalCount;
-      previousBaseXpState = Math.round(prevPercentage * DAILY_MAX_BASE_XP);
+    // Daily reward: +10 XP for first completion in this category today
+    let dailyReward = 0;
+    const hadCompletionsBefore = existingDailyStat && existingDailyStat.completedResolutionsCount > 0;
+    if (isCompleted && !wasAlreadyCompleted && !hadCompletionsBefore) {
+      dailyReward = XP_DAILY_STREAK; // +10 XP daily base reward
     }
 
-    const baseXpDelta = currentBaseXpState - previousBaseXpState;
-    const totalXpChange = baseXpDelta + instantBonusXp;
-    const newTotalDailyXp = (existingDailyStat?.xpEarned || 0) + totalXpChange;
+    // Calculate total daily XP for this category
+    const currentDailyXp = baseXp + dailyReward + bonusXp;
+    const previousDailyXp = existingDailyStat?.xpEarned || 0;
 
+    // XP change is the difference (handles un-completing too)
+    const previousBaseXp = existingDailyStat
+      ? Math.round((existingDailyStat.completedResolutionsCount / (existingDailyStat.totalResolutionsCount || 1)) * DAILY_MAX_BASE_XP)
+      : 0;
+    const baseXpChange = baseXp - previousBaseXp;
+    const xpChange = baseXpChange + dailyReward + bonusXp;
+
+    // Update or create daily stat
     if (existingDailyStat) {
       await ctx.db.patch(existingDailyStat._id, {
-        xpEarned: newTotalDailyXp,
+        xpEarned: existingDailyStat.xpEarned + xpChange,
         completedResolutionsCount: completedCount,
         totalResolutionsCount: totalCount,
       });
@@ -325,12 +322,13 @@ export const logProgress = mutation({
         userId: resolution.userId,
         categoryKey: resolution.categoryKey,
         date: args.date,
-        xpEarned: totalXpChange,
+        xpEarned: currentDailyXp,
         completedResolutionsCount: completedCount,
         totalResolutionsCount: totalCount,
       });
     }
 
+    // Update lifetime category XP
     const userStats = await ctx.db
       .query("userCategoryStats")
       .withIndex("by_user_category", (q) =>
@@ -340,9 +338,11 @@ export const logProgress = mutation({
       )
       .first();
 
-    let finalTotalXp = totalXpChange;
+    const newDailyTotal = existingDailyStat ? existingDailyStat.xpEarned + xpChange : currentDailyXp;
+
+    let finalTotalXp = xpChange;
     if (userStats) {
-      finalTotalXp = userStats.totalXp + totalXpChange;
+      finalTotalXp = userStats.totalXp + xpChange;
       await ctx.db.patch(userStats._id, {
         totalXp: finalTotalXp,
       });
@@ -357,9 +357,9 @@ export const logProgress = mutation({
 
     return {
       success: true,
-      newDailyXp: newTotalDailyXp,
+      newDailyXp: newDailyTotal,
       totalCategoryXp: finalTotalXp,
-      xpGainedNow: totalXpChange,
+      xpGainedNow: xpChange > 0 ? xpChange : 0,
     };
   },
 });

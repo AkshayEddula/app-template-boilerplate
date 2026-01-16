@@ -4,133 +4,66 @@ import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  ChampionIcon,
-  Fire02Icon,
-  LaurelWreathLeft01Icon,
-  LaurelWreathRight01Icon,
-  LockKeyIcon,
-  SunCloudAngledZap01Icon,
-  Target02Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react-native";
 import { useQuery } from "convex/react";
 import { BlurView } from "expo-blur";
-import { GlassView } from "expo-glass-effect";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { setStatusBarStyle } from "expo-status-bar";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Dimensions,
   FlatList,
-  Platform,
-  StatusBar,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
-import Animated, {
-  FadeInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown, FadeInUp } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Circle, Path, Line as SvgLine } from "react-native-svg";
-import {
-  scheduleOnUI,
-} from "react-native-worklets";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// --- GAMIFICATION CONSTANTS (Matches Backend) ---
-const DAILY_MAX_BASE_XP = 100;
-const XP_PER_COMPLETION = 10;
-const XP_DAILY_STREAK = 10;
+// Theme
+const BG_COLOR = "#FAF9F6";
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
 
-const MILESTONE_DEFINITIONS = [
-  { days: 3, xp: 50, color: "#34D399" }, // Emerald
-  { days: 7, xp: 100, color: "#22D3EE" }, // Cyan
-  { days: 14, xp: 200, color: "#818CF8" }, // Indigo
-  { days: 30, xp: 500, color: "#F472B6" }, // Pink
-  { days: 60, xp: 1000, color: "#F87171" }, // Red
-];
-
-// --- CONFIGURATION ---
-const MAIN_TABS = [
-  { key: "analytics", label: "Analytics" },
-  { key: "vault", label: "Vault" },
-  { key: "challenge", label: "Challenge" },
-];
-
-const ANALYTICS_TABS = [
-  { key: "week", label: "Weekly" },
-  { key: "month", label: "Monthly" },
-];
-
-const FILTERS = [
-  { id: "all", label: "All", icon: "layers" },
-  { id: "health", label: "Health", icon: "heart" },
-  { id: "mind", label: "Mind", icon: "prism" },
-  { id: "career", label: "Career", icon: "briefcase" },
-  { id: "life", label: "Life", icon: "compass" },
-  { id: "fun", label: "Fun", icon: "sparkles" },
-] as const;
-
-const CARD_COLORS = [
-  "#F0F9FF",
-  "#F0FDF4",
-  "#FAF5FF",
-  "#FFF7ED",
-  "#FEF2F2",
-  "#FEFCE8",
-];
-
-const CATEGORY_COLORS: Record<string, string> = {
-  health: "#10B981",
-  mind: "#8B5CF6",
-  career: "#3B82F6",
-  life: "#F59E0B",
-  fun: "#EC4899",
-  default: "#94A3B8",
+// Categories
+const CATEGORIES: Record<string, { icon: string; color: string; bg: string }> = {
+  health: { icon: "💧", color: "#10B981", bg: "#ECFDF5" },
+  mind: { icon: "🧘", color: "#8B5CF6", bg: "#F5F3FF" },
+  career: { icon: "💼", color: "#3B82F6", bg: "#EFF6FF" },
+  life: { icon: "🌟", color: "#F59E0B", bg: "#FFFBEB" },
+  fun: { icon: "🎮", color: "#EC4899", bg: "#FDF2F8" },
 };
 
-const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  health: "heart",
-  mind: "prism",
-  career: "briefcase",
-  life: "compass",
-  fun: "sparkles",
-};
+const TABS = [
+  { key: "vault", label: "🎴 Vault" },
+  { key: "stats", label: "📊 Stats" },
+  { key: "rewards", label: "🏆 Rewards" },
+];
 
-type TimeRange = "week" | "month";
-type MainTab = "analytics" | "vault" | "challenge";
+const MILESTONES = [
+  { days: 3, xp: 50, emoji: "🌱" },
+  { days: 7, xp: 100, emoji: "🔥" },
+  { days: 14, xp: 200, emoji: "⚡" },
+  { days: 30, xp: 500, emoji: "💎" },
+  { days: 60, xp: 1000, emoji: "👑" },
+];
 
-// --- BEZIER CURVE HELPER ---
-const createSmoothPath = (
-  data: { value: number }[],
-  width: number,
-  height: number,
-  padding: number = 12,
-) => {
-  if (!data || data.length === 0)
-    return { path: "", lastPoint: { x: 0, y: 0 }, points: [] };
+// Bezier curve helper for smooth graph
+const createSmoothPath = (data: { value: number }[], width: number, height: number, padding: number = 12) => {
+  if (!data || data.length === 0) return { path: "", lastPoint: { x: 0, y: 0 }, points: [] };
   const drawWidth = width - padding * 2;
   const drawHeight = height - padding * 2;
   const maxVal = Math.max(...data.map((d) => d.value), 100);
-  const getX = (index: number) =>
-    padding + (index / (data.length - 1)) * drawWidth;
-  const getY = (val: number) =>
-    padding + drawHeight - (val / maxVal) * drawHeight;
+  const getX = (index: number) => padding + (index / (data.length - 1)) * drawWidth;
+  const getY = (val: number) => padding + drawHeight - (val / maxVal) * drawHeight;
   const points = data.map((d, i) => ({ x: getX(i), y: getY(d.value) }));
 
-  if (points.length === 1)
-    return {
-      path: `M ${points[0].x},${points[0].y}`,
-      lastPoint: points[0],
-      points,
-    };
+  if (points.length === 1) return { path: `M ${points[0].x},${points[0].y}`, lastPoint: points[0], points };
 
   let d = `M ${points[0].x},${points[0].y}`;
   for (let i = 0; i < points.length - 1; i++) {
@@ -147,1086 +80,649 @@ const createSmoothPath = (
   return { path: d, lastPoint: points[points.length - 1], points };
 };
 
-// --- LOCKED VIEW COMPONENT ---
-const LockedView = ({ onUnlock, message, buttonText }: { onUnlock: () => void, message: string, buttonText: string }) => (
-  <View style={[StyleSheet.absoluteFill, { zIndex: 45, alignItems: 'center', justifyContent: 'center' }]}>
-    <BlurView
-      intensity={20}
-      tint="dark"
-      style={StyleSheet.absoluteFill}
-    />
-    {/* Gradient Overlay for extra depth */}
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.4)' }]} />
-
-    <View className="items-center px-8 w-full max-w-[400px]">
-      {/* Icon Container with Glow */}
-      <View className="mb-8 relative items-center justify-center">
-        {/* <View className="absolute w-[120px] h-[120px] bg-[#3A7AFE]/30 rounded-full blur-2xl" /> */}
-        <View
-          className="w-32 h-32 rounded-full items-center justify-center border border-white/10 relative"
-          style={{
-            backgroundColor: 'rgba(255, 255, 255, 0.08)',
-            shadowColor: '#3A7AFE',
-            shadowOffset: { width: 0, height: 0 },
-            borderRadius: 64,
-            shadowOpacity: 0.5,
-            shadowRadius: 20,
-          }}
-        >
-          <GlassView glassEffectStyle="regular" style={{ ...StyleSheet.absoluteFillObject, borderRadius: 64 }} tintColor="#3A7AFE" />
-          <HugeiconsIcon icon={LockKeyIcon} size={42} color="#FFFFFF" variant="solid" />
-        </View>
-      </View>
-
-      <Text className="text-white font-generalsans-bold text-[32px] text-center mb-3 tracking-tight">
-        Premium Access
-      </Text>
-      <Text className="text-white/70 font-generalsans-medium text-[16px] text-center leading-6 mb-10">
-        {message}
-      </Text>
-
-      <TouchableOpacity
-        onPress={onUnlock}
-        activeOpacity={0.8}
-        className="w-full"
-      >
-        <View
-          style={{
-            shadowColor: '#3A7AFE',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.4,
-            shadowRadius: 12,
-            elevation: 8,
-          }}
-        >
-          <GlassView
-            glassEffectStyle="regular"
-            tintColor="#3A7AFE"
-            style={{
-              height: 60,
-              borderRadius: 20,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.2)'
-            }}
-          >
-            <Text className="text-white font-generalsans-bold text-[18px]">
-              {buttonText}
-            </Text>
-          </GlassView>
-        </View>
-      </TouchableOpacity>
-    </View>
-  </View>
-);
-
-export default function AnalyticsScreen() {
+export default function ExploreScreen() {
   const router = useRouter();
-  const [currentTab, setCurrentTab] = useState<MainTab>("vault");
-
-  // Track which tabs have been visited to lazy-load them
-  const [loadedTabs, setLoadedTabs] = useState({
-    analytics: false,
-    vault: true,
-    challenge: false,
-  });
-
-  const handleTabChange = (key: MainTab) => {
-    setCurrentTab(key);
-    if (!loadedTabs[key]) {
-      setLoadedTabs((prev) => ({ ...prev, [key]: true }));
-    }
-  };
-
+  const [activeTab, setActiveTab] = useState("vault");
   const [paywallVisible, setPaywallVisible] = useState(false);
   const { isPremium } = useSubscription();
   const { isSignedIn } = useAuth();
-  const isLocked = !isPremium || !isSignedIn;
+  const isLocked = !isPremium;
 
-  const handleUnlock = () => {
-    if (!isPremium) {
-      setPaywallVisible(true);
-    } else if (!isSignedIn) {
-      router.replace('/(auth)/sign-up');
-    }
-  };
-
-  /* Locked View Logic */
-  const getLockedState = () => {
-    // 1. If not Premium (Guest or Free), prompt to Upgrade FIRST
-    if (!isPremium) {
-      return {
-        message: "Upgrade to Premium to access advanced analytics, the Vault, and Challenges.",
-        buttonText: "Unlock Access"
-      };
-    }
-    // 2. If Premium but Guest, prompt to Sign In
-    if (!isSignedIn) {
-      return {
-        message: "Sign in to sync your data and view your analytics.",
-        buttonText: "Sign In / Register"
-      };
-    }
-    return {
-      message: "Locked",
-      buttonText: "Unlock"
-    };
-  };
-
-  const { message: lockMessage, buttonText: lockBtnText } = getLockedState();
-
-  return (
-    <View className="flex-1 bg-[#3A7AFE]">
-      <StatusBar
-        barStyle="light-content"
-        translucent
-        backgroundColor="transparent"
-      />
-      <SafeAreaView edges={["top"]} className="flex-1">
-        {/* --- HEADER --- */}
-        <View className="w-full max-w-[600px] self-center px-6 pt-4 pb-2 flex-row items-center justify-between z-50">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-11 h-11 items-center justify-center rounded-2xl bg-white/20 active:bg-white/30 border border-white/20"
-          >
-            <Ionicons name="chevron-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text className="text-white font-generalsans-bold text-[22px]">
-            Analytics
-          </Text>
-          <View className="w-11" />
-        </View>
-
-        {/* --- MAIN TAB SWITCHER --- */}
-        <View className="w-full max-w-[600px] self-center px-6 mt-4 mb-2 z-40">
-          <GlassTabs
-            tabs={MAIN_TABS}
-            activeKey={currentTab}
-            onTabChange={(k) => handleTabChange(k as MainTab)}
-          />
-        </View>
-
-        {/* --- CONTENT AREA --- */}
-        <View className="flex-1 w-full max-w-[600px] self-center">
-          {/* Analytics: Always loaded */}
-          <View
-            style={{
-              flex: 1,
-              display: currentTab === "analytics" ? "flex" : "none",
-            }}
-          >
-            <AnalyticsView />
-          </View>
-
-          {/* Vault: Lazy loaded, then kept alive */}
-          <View
-            style={{
-              flex: 1,
-              display: currentTab === "vault" ? "flex" : "none",
-            }}
-          >
-            {loadedTabs.vault && <VaultView />}
-          </View>
-
-          {/* Challenge: Lazy loaded, then kept alive */}
-          <View
-            style={{
-              flex: 1,
-              display: currentTab === "challenge" ? "flex" : "none",
-            }}
-          >
-            {loadedTabs.challenge && <ChallengeView />}
-          </View>
-        </View>
-
-        {/* --- GLOBAL LOCKED OVERLAY --- */}
-        {isLocked && (
-          <LockedView onUnlock={handleUnlock} message={lockMessage} buttonText={lockBtnText} />
-        )}
-      </SafeAreaView>
-
-      <PaywallModal
-        visible={paywallVisible}
-        onClose={() => setPaywallVisible(false)}
-      />
-    </View>
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle("dark");
+    }, [])
   );
-}
-
-// ------------------------------------------------------------------
-// SUB-VIEW 1: Analytics
-// ------------------------------------------------------------------
-function AnalyticsView() {
-  const [timeRange, setTimeRange] = useState<TimeRange>("week");
-  const resolutions = useQuery(api.resolutions.getResolutionAnalytics);
 
   return (
-    <Animated.View entering={FadeInDown.duration(400)} className="flex-1">
-      {/* Weekly/Monthly Sub-Tab */}
-      <View className="px-6 mb-6 mt-2">
-        <GlassTabs
-          tabs={ANALYTICS_TABS}
-          activeKey={timeRange}
-          onTabChange={(k) => setTimeRange(k as TimeRange)}
-        />
-      </View>
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
+        <View style={{ flex: 1, width: "100%", maxWidth: 600, alignSelf: "center" }}>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="chevron-back" size={22} color={TEXT_PRIMARY} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Explore</Text>
+            <View style={{ width: 44 }} />
+          </View>
 
-      <FlatList
-        data={resolutions}
-        keyExtractor={(item) => item._id}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item, index }) => (
-          <Animated.View
-            entering={FadeInDown.delay(index * 80 + 200).duration(600)}
-          >
-            <ResolutionStatsCard
-              item={item}
-              index={index}
-              timeRange={timeRange}
-            />
-          </Animated.View>
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            loading={resolutions === undefined}
-            title="No Active Goals"
-            subtitle="Start tracking goals to see analytics"
-            icon="bar-chart-outline"
-          />
-        }
-      />
-    </Animated.View>
-  );
-}
-
-// ------------------------------------------------------------------
-// SUB-VIEW 2: Vault
-// ------------------------------------------------------------------
-function VaultView() {
-  const allCards = useQuery(api.stats.getAllCards) || [];
-  const [activeFilter, setActiveFilter] = useState<string>("all");
-
-  const filteredCards = useMemo(() => {
-    if (activeFilter === "all") return allCards;
-    return allCards.filter((c) => c.categoryKey === activeFilter);
-  }, [allCards, activeFilter]);
-
-  return (
-    <Animated.View entering={FadeInDown.duration(400)} className="flex-1 pt-2">
-      {/* --- Filter Bar --- */}
-      <View className="mb-6">
-        <FlatList
-          data={FILTERS}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => {
-            const isActive = activeFilter === item.id;
-            return (
+          {/* Tabs */}
+          <View style={styles.tabContainer}>
+            {TABS.map((tab) => (
               <TouchableOpacity
-                onPress={() => setActiveFilter(item.id)}
-                activeOpacity={0.8}
-                style={{
-                  backgroundColor: isActive
-                    ? "#FFFFFF"
-                    : "rgba(255,255,255,0.1)",
-                  borderWidth: isActive ? 0 : 1,
-                  borderColor: isActive
-                    ? "transparent"
-                    : "rgba(255,255,255,0.15)",
-                  paddingVertical: 10,
-                  paddingHorizontal: 16,
-                  borderRadius: 100,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                }}
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key)}
+                style={[styles.tab, activeTab === tab.key && styles.tabActive]}
               >
-                <Ionicons
-                  name={item.icon as any}
-                  size={14}
-                  color={isActive ? "#3A7AFE" : "rgba(255,255,255,0.8)"}
-                />
-                <Text
-                  style={{
-                    color: isActive ? "#3A7AFE" : "rgba(255,255,255,0.9)",
-                    fontFamily: isActive
-                      ? "GeneralSans-Bold"
-                      : "GeneralSans-Medium",
-                    fontSize: 13,
-                  }}
-                >
-                  {item.label}
+                <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+                  {tab.label}
                 </Text>
               </TouchableOpacity>
-            );
-          }}
-        />
-      </View>
-
-      {/* --- Card List (2 Column Grid) --- */}
-      <FlatList
-        data={filteredCards}
-        keyExtractor={(item) => item._id}
-        key={activeFilter}
-        numColumns={2}
-        contentContainerStyle={{
-          paddingTop: 10,
-          paddingBottom: 120,
-          paddingHorizontal: 12, // Match SPACING
-        }}
-        columnWrapperStyle={{
-          gap: 4, // Match SPACING
-          marginBottom: 0,
-          justifyContent: 'space-between', // Force spacing
-        }}
-        showsVerticalScrollIndicator={false}
-        initialNumToRender={6}
-        maxToRenderPerBatch={6}
-        windowSize={3}
-        removeClippedSubviews={Platform.OS === "android"}
-        renderItem={({ item, index }) => (
-          <Animated.View
-            entering={FadeInDown.delay(index * 50).duration(400)}
-          >
-            <VaultCardWrapper item={item} />
-          </Animated.View>
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            loading={allCards.length === 0}
-            title={allCards.length === 0 ? "Loading Vault..." : "No Cards"}
-            subtitle="Complete goals to unlock cards"
-            icon="albums-outline"
-          />
-        }
-      />
-    </Animated.View>
-  );
-}
-
-// ------------------------------------------------------------------
-// SUB-VIEW 3: Challenge (Timeline + Real Data)
-// ------------------------------------------------------------------
-function ChallengeView() {
-  // 1. Fetch User Data for Real Streak
-  const user = useQuery(api.users.currentUser);
-  const currentStreak = user?.currentStreak || 0;
-
-  // 2. Prepare Daily Stats based on Backend Constants
-  const dailyStats = [
-    {
-      id: "per_task",
-      label: "Per Task",
-      value: XP_PER_COMPLETION,
-      unit: "XP",
-      icon: Target02Icon,
-      color: "#60A5FA", // Blue-400
-      bg: "rgba(96, 165, 250, 0.2)",
-      desc: "Base Reward",
-    },
-    {
-      id: "streak_bonus",
-      label: "Streak Bonus",
-      value: XP_DAILY_STREAK,
-      unit: "XP",
-      icon: Fire02Icon,
-      color: "#FB923C", // Orange-400
-      bg: "rgba(251, 146, 60, 0.2)",
-      desc: "Daily Active",
-    },
-    {
-      id: "daily_cap",
-      label: "Daily Cap",
-      value: DAILY_MAX_BASE_XP,
-      unit: "XP",
-      icon: SunCloudAngledZap01Icon,
-      color: "#FACC15", // Yellow-400
-      bg: "rgba(250, 204, 21, 0.2)",
-      desc: "Max Earning",
-    },
-  ];
-
-  // 3. Map Milestones with Locked Status
-  const milestonesList = MILESTONE_DEFINITIONS.map((m) => ({
-    ...m,
-    locked: currentStreak < m.days,
-  }));
-
-  return (
-    <Animated.ScrollView
-      entering={FadeInDown.duration(400)}
-      contentContainerStyle={{
-        paddingHorizontal: 20,
-        paddingTop: 10,
-        paddingBottom: 120,
-      }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* --- HERO HEADER --- */}
-      <View className="mb-8 mt-2">
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-white font-generalsans-bold text-[24px]">
-              XP Challenge
-            </Text>
-            <Text className="text-white/60 font-generalsans-medium text-[14px] mt-1">
-              Maximize your daily potential.
-            </Text>
-          </View>
-          <View className="w-12 h-12 rounded-full bg-white/10 items-center justify-center border border-white/20">
-            <HugeiconsIcon
-              icon={ChampionIcon}
-              size={24}
-              color="#FACC15"
-              variant="solid"
-            />
-          </View>
-        </View>
-      </View>
-
-      {/* --- 1. DAILY STATS (Horizontal Cards) --- */}
-      <View className="flex-row gap-3 mb-10">
-        {dailyStats.map((stat, index) => (
-          <StatCard key={stat.id} stat={stat} index={index} />
-        ))}
-      </View>
-
-      {/* --- 2. MILESTONES (Timeline Look) --- */}
-      <View className="mb-6 flex-row items-center gap-3">
-        <View className="bg-white/20 p-2 rounded-xl">
-          <HugeiconsIcon
-            icon={ChampionIcon}
-            size={20}
-            color="#FFFFFF"
-            variant="solid"
-          />
-        </View>
-        <Text className="text-white font-generalsans-bold text-[20px]">
-          Streak Rewards
-        </Text>
-        <View className="bg-white/10 px-2 py-0.5 rounded-md ml-auto">
-          <Text className="text-white/60 text-[10px] font-generalsans-bold">
-            Current: {currentStreak} Days
-          </Text>
-        </View>
-      </View>
-
-      <View className="relative pl-4">
-        {/* Timeline Line */}
-        <View
-          className="absolute left-[29px] top-4 bottom-10 w-[2px] bg-white/20"
-          style={{ borderStyle: "dashed", borderRadius: 2 }}
-        />
-
-        {milestonesList.map((milestone, index) => (
-          <MilestoneCard
-            key={milestone.days}
-            item={milestone}
-            index={index}
-            isLast={index === milestonesList.length - 1}
-          />
-        ))}
-      </View>
-    </Animated.ScrollView>
-  );
-}
-
-// ------------------------------------------------------------------
-// REUSABLE COMPONENTS
-// ------------------------------------------------------------------
-
-// 1. Stat Card (For Challenge)
-function StatCard({ stat, index }: { stat: any; index: number }) {
-  return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 100).duration(600)}
-      style={{ flex: 1 }}
-    >
-      <View
-        style={{
-          height: 150,
-        }}
-      >
-        {Platform.OS === "ios" && (
-          <GlassView
-            style={{
-              ...StyleSheet.absoluteFillObject,
-              borderRadius: 32,
-              overflow: "hidden",
-            }}
-            glassEffectStyle="regular"
-            tintColor="#3A7AFE"
-          />
-        )}
-
-        <View className="flex-1 items-center justify-between p-3 py-5">
-          <View
-            className="w-10 h-10 rounded-full items-center justify-center mb-2"
-            style={{ backgroundColor: stat.bg }}
-          >
-            <HugeiconsIcon
-              icon={stat.icon}
-              size={20}
-              color={stat.color}
-              variant="solid"
-            />
+            ))}
           </View>
 
-          <View className="items-center">
-            <Text className="text-white font-generalsans-bold text-[26px] leading-8">
-              {stat.value}
-            </Text>
-            <Text className="text-white/50 font-generalsans-bold text-[10px] uppercase tracking-wider">
-              {stat.unit}
-            </Text>
-          </View>
+          {/* Content */}
+          {activeTab === "vault" && <VaultView />}
+          {activeTab === "stats" && <StatsView />}
+          {activeTab === "rewards" && <RewardsView />}
 
-          <Text className="text-white/80 font-generalsans-medium text-[10px] text-center mt-1">
-            {stat.desc}
-          </Text>
-        </View>
-      </View>
-    </Animated.View>
-  );
-}
-
-// 2. Milestone Card (For Challenge Timeline)
-function MilestoneCard({
-  item,
-  index,
-  isLast,
-}: {
-  item: any;
-  index: number;
-  isLast: boolean;
-}) {
-  return (
-    <Animated.View
-      entering={FadeInDown.delay(300 + index * 100).duration(500)}
-      className="flex-row items-center mb-5"
-    >
-      {/* Timeline Node */}
-      <View className="relative items-center justify-center mr-4 z-10">
-        <View
-          className="w-8 h-8 rounded-full items-center justify-center border-2 bg-[#3A7AFE]"
-          style={{
-            borderColor: item.locked ? "rgba(255,255,255,0.8)" : item.color,
-            shadowColor: item.color,
-            shadowOpacity: item.locked ? 0 : 0.5,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 0 },
-            backgroundColor: item.locked ? "fafafa" : "#3A7AFE",
-          }}
-        >
-          {item.locked ? (
-            <View className="w-2.5 h-2.5 rounded-full bg-white" />
-          ) : (
-            <HugeiconsIcon
-              icon={ChampionIcon}
-              size={14}
-              color="#FFFFFF"
-              variant="solid"
+          {/* Locked Overlay */}
+          {isLocked && (
+            <LockedOverlay
+              onUnlock={() => setPaywallVisible(true)}
             />
           )}
         </View>
-      </View>
+      </SafeAreaView>
 
-      {/* The Card */}
-      <View
-        className="flex-1 rounded-[22px] overflow-hidden"
-        style={{
-          height: 72,
-          opacity: item.locked ? 0.7 : 1,
-        }}
-      >
-        {Platform.OS === "ios" && (
-          <GlassView
-            style={{
-              ...StyleSheet.absoluteFillObject,
-              borderRadius: 32,
-              overflow: "hidden",
-            }}
-            glassEffectStyle="regular"
-            tintColor="#3A7AFE"
-          />
-        )}
-
-        <View className="flex-1 flex-row items-center justify-between px-5">
-          <View>
-            <Text className="text-white font-generalsans-bold text-[16px]">
-              {item.days} Day Streak
-            </Text>
-            <Text className="text-white/50 font-generalsans-medium text-[12px] mt-0.5">
-              {item.locked ? "Locked" : "Achieved!"}
-            </Text>
-          </View>
-
-          {/* Reward Badge */}
-          <View className="flex-row items-center bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
-            {item.locked && (
-              <HugeiconsIcon
-                icon={LockKeyIcon}
-                size={12}
-                color="rgba(255,255,255,0.5)"
-                style={{ marginRight: 4 }}
-              />
-            )}
-            <Text
-              className="font-generalsans-bold text-[14px]"
-              style={{
-                color: item.locked ? "rgba(255,255,255,0.5)" : item.color,
-              }}
-            >
-              +{item.xp} XP
-            </Text>
-          </View>
-        </View>
-
-        {/* Progress bar at bottom if unlocked */}
-        {!item.locked && (
-          <View
-            className="absolute bottom-0 left-0 h-[3px] bg-white"
-            style={{ width: "100%", backgroundColor: item.color }}
-          />
-        )}
-      </View>
-    </Animated.View>
-  );
-}
-
-// 3. Vault Card Wrapper
-function VaultCardWrapper({ item }: { item: any }) {
-  const isEquipped = item.isUnlocked && item.currentXp <= item.maxXp;
-  const isCompleted = item.isUnlocked && item.currentXp > item.maxXp;
-
-  let displayXp = item.minXp;
-  if (isEquipped) {
-    displayXp = item.currentXp;
-  } else if (isCompleted) {
-    displayXp = item.maxXp;
-  }
-
-  return (
-    <View className="relative items-center">
-      <View style={{ opacity: item.isUnlocked ? 1 : 0.6 }}>
-        <CharacterCard
-          categoryKey={item.categoryKey}
-          xp={displayXp}
-          scale={1.0}
-          isEquipped={isEquipped}
-          isCompleted={isCompleted}
-          imageUrl={item.image}
-          message={item.message}
-          isLocked={!item.isUnlocked}
-        />
-      </View>
-
-      {!item.isUnlocked && (
-        <View className="absolute inset-0 items-center justify-center z-10" pointerEvents="none">
-          <GlassView
-            glassEffectStyle="regular"
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 2,
-              borderColor: "rgba(255,255,255,0.2)",
-              marginBottom: 12,
-            }}
-          >
-            <HugeiconsIcon icon={LockKeyIcon} size={26} color="white" />
-          </GlassView>
-
-          <View className="bg-black/60 px-4 py-2 rounded-full backdrop-blur-md border border-white/10">
-            <Text className="text-white/90 font-generalsans-bold text-[12px] text-center">
-              Stage {item.stage}
-            </Text>
-            <Text className="text-white/60 font-generalsans-medium text-[10px] text-center mt-0.5">
-              Need {item.minXp} XP
-            </Text>
-          </View>
-        </View>
-      )}
+      <PaywallModal visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
     </View>
   );
 }
 
-// 4. Glass Tabs
-function GlassTabs({
-  tabs,
-  activeKey,
-  onTabChange,
-}: {
-  tabs: { key: string; label: string }[];
-  activeKey: string;
-  onTabChange: (k: string) => void;
-}) {
-  const selectedIndex = useSharedValue(0);
-  const containerWidth = useSharedValue(0);
+// --- VAULT VIEW ---
+function VaultView() {
+  const allCards = useQuery(api.stats.getAllCards) || [];
+  const [filter, setFilter] = useState("all");
 
-  useEffect(() => {
-    const idx = tabs.findIndex((t) => t.key === activeKey);
-    scheduleOnUI(() => {
-      selectedIndex.value = idx;
-    });
-  }, [activeKey]);
+  const filtered = useMemo(() => {
+    if (filter === "all") return allCards;
+    return allCards.filter((c) => c.categoryKey === filter);
+  }, [allCards, filter]);
 
-  const indicatorPosition = useAnimatedStyle(() => {
-    if (containerWidth.value === 0) return {};
-    const tabWidth = containerWidth.value / tabs.length;
-    return {
-      width: tabWidth,
-      transform: [
-        {
-          translateX: withTiming(selectedIndex.value * tabWidth, {
-            duration: 300,
-          }),
-        },
-      ],
-    };
-  });
+  const filters = ["all", "health", "mind", "career", "life", "fun"];
 
   return (
-    <View className="h-14 w-full">
-      <GlassView
-        glassEffectStyle="regular"
-        tintColor="#3A7AFE"
-        style={{ flex: 1, borderRadius: 999, overflow: "hidden" }}
+    <Animated.View entering={FadeIn} style={{ flex: 1 }}>
+      {/* Filters */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRow}
       >
-        <View
-          style={{ padding: 4, flexDirection: "row", height: "100%" }}
-          onLayout={(e) =>
-            (containerWidth.value = e.nativeEvent.layout.width - 8)
-          }
-        >
-          <Animated.View
-            style={[
-              indicatorPosition,
-              {
-                position: "absolute",
-                left: 4,
-                top: 4,
-                bottom: 4,
-                borderRadius: 999,
-                overflow: "hidden",
-              },
-            ]}
-          >
-            <GlassView glassEffectStyle="regular" style={{ flex: 1 }} />
-          </Animated.View>
-
-          {tabs.map((tab) => (
+        {filters.map((f) => {
+          const isActive = filter === f;
+          const cat = CATEGORIES[f];
+          return (
             <TouchableOpacity
-              key={tab.key}
-              onPress={() => onTabChange(tab.key)}
-              className="flex-1 items-center justify-center z-10"
-              activeOpacity={0.7}
+              key={f}
+              onPress={() => setFilter(f)}
+              style={[styles.filterPill, isActive && { backgroundColor: TEXT_PRIMARY }]}
             >
-              <Text
-                className={`text-[13px] font-generalsans-bold ${activeKey === tab.key ? "text-white" : "text-white/70"}`}
-              >
-                {tab.label}
+              <Text style={{ fontSize: 13 }}>{cat?.icon || "📋"}</Text>
+              <Text style={[styles.filterText, isActive && { color: "#FFF" }]}>
+                {f.charAt(0).toUpperCase() + f.slice(1)}
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
-      </GlassView>
-    </View>
-  );
-}
+          );
+        })}
+      </ScrollView>
 
-// 5. Empty State
-function EmptyState({ loading, title, subtitle, icon }: any) {
-  return (
-    <View className="items-center justify-center mt-20 px-8">
-      <View className="w-20 h-20 rounded-full bg-white/10 items-center justify-center mb-4">
-        <Ionicons name={icon} size={32} color="white" />
-      </View>
-      <Text className="text-white font-generalsans-bold text-[17px] mb-2 text-center">
-        {loading ? "Loading..." : title}
-      </Text>
-      <Text className="text-white/60 font-generalsans-semibold text-[13px] text-center">
-        {loading ? "Please wait..." : subtitle}
-      </Text>
-    </View>
-  );
-}
-
-// 6. Resolution Stats Card
-function ResolutionStatsCard({
-  item,
-  index,
-  timeRange,
-}: {
-  item: any;
-  index: number;
-  timeRange: TimeRange;
-}) {
-  const pressed = useSharedValue(0);
-  const categoryColor =
-    CATEGORY_COLORS[item.categoryKey] || CATEGORY_COLORS.default;
-  const icon = CATEGORY_ICONS[item.categoryKey] || "ellipse";
-  const baseColor = CARD_COLORS[index % CARD_COLORS.length];
-  const currentStreak = item.currentStreak || 0;
-  const bestStreak = item.bestStreak || currentStreak;
-  const fullHistory = item.history || [];
-
-  const displayHistory = useMemo(() => {
-    if (timeRange === "week") return fullHistory.slice(-7);
-    return fullHistory;
-  }, [fullHistory, timeRange]);
-
-  const lastValue = displayHistory[displayHistory.length - 1]?.value || 0;
-  const completionRate =
-    displayHistory.length > 0
-      ? Math.round(
-        displayHistory.reduce((sum: number, h: any) => sum + h.value, 0) /
-        displayHistory.length,
-      )
-      : 0;
-
-  const GRAPH_HEIGHT = 110;
-  const GRAPH_WIDTH = SCREEN_WIDTH - 80;
-  const { path, lastPoint, points } = useMemo(
-    () => createSmoothPath(displayHistory, GRAPH_WIDTH, GRAPH_HEIGHT, 14),
-    [displayHistory, GRAPH_WIDTH, GRAPH_HEIGHT],
-  );
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: withSpring(1 - pressed.value * 0.02) }],
-  }));
-
-  return (
-    <Animated.View style={animatedStyle}>
-      <View
-        className="mb-5 rounded-[32px] overflow-hidden"
-        style={{
-          backgroundColor:
-            Platform.OS === "android" ? baseColor : "transparent",
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.1,
-          shadowRadius: 16,
-          elevation: 6,
-        }}
-      >
-        {Platform.OS === "ios" && (
-          <GlassView
-            glassEffectStyle="regular"
-            tintColor={baseColor}
-            style={{ ...StyleSheet.absoluteFillObject, borderRadius: 32 }}
-          />
+      {/* Cards Grid */}
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => item._id}
+        numColumns={2}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 100 }}
+        columnWrapperStyle={{ gap: 8, marginBottom: 8 }}
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item, index }) => (
+          <Animated.View entering={FadeInUp.delay(index * 40)} style={{ flex: 1 }}>
+            <CharacterCard
+              categoryKey={item.categoryKey}
+              xp={item.currentXp || 0}
+              stage={item.stage}
+              stageName={item.stageName}
+              minXp={item.minXp}
+              imageUrl={item.image}
+              isLocked={!item.isUnlocked}
+            />
+          </Animated.View>
         )}
-
-        <View className="pt-6 pb-6 px-5">
-          {/* HEADER ROW */}
-          <View className="flex-row items-center gap-3 mb-6">
-            <View className="w-12 h-12 rounded-2xl items-center justify-center bg-white/60 border border-white/80">
-              <Ionicons name={icon} size={20} color="#1E293B" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-[#1E293B] font-generalsans-bold text-[18px] leading-tight mb-0.5">
-                {item.title}
-              </Text>
-              <View className="flex-row items-center gap-2">
-                <Text className="text-[#64748B] text-[11px] font-generalsans-medium">
-                  {timeRange === "week" ? "Last 7 Days" : "Last 30 Days"}
-                </Text>
-                <View className="w-1 h-1 rounded-full bg-[#64748B]/40" />
-                <Text className="text-[#64748B] text-[11px] font-generalsans-bold">
-                  {completionRate}% avg
-                </Text>
-              </View>
-            </View>
-            <View className="px-2.5 py-1 rounded-full bg-white/50 border border-white/40">
-              <Text className="text-[10px] font-generalsans-bold text-[#1E293B]">
-                {lastValue}% Today
-              </Text>
-            </View>
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={{ fontSize: 48 }}>🎴</Text>
+            <Text style={styles.emptyTitle}>No Cards Yet</Text>
+            <Text style={styles.emptySubtitle}>Complete goals to unlock cards</Text>
           </View>
-
-          {/* DUAL STATS */}
-          <View className="flex-row gap-3 mb-6">
-            {/* Streak */}
-            <View className="flex-1 h-[110px] rounded-[24px] overflow-hidden relative">
-              <GlassView
-                glassEffectStyle="regular"
-                style={StyleSheet.absoluteFillObject}
-              />
-              <View className="absolute inset-0 bg-white/30" />
-              <View className="flex-1 items-center justify-center py-2 border border-white/40 rounded-[24px]">
-                <View className="flex-row items-center gap-1.5 mb-1 opacity-80">
-                  <HugeiconsIcon
-                    icon={Fire02Icon}
-                    size={12}
-                    color="#1E293B"
-                    variant="solid"
-                  />
-                  <Text className="text-[#1E293B] text-[10px] font-generalsans-bold uppercase tracking-wider">
-                    Current
-                  </Text>
-                </View>
-                <View className="flex-row items-center mt-1">
-                  <HugeiconsIcon
-                    icon={LaurelWreathLeft01Icon}
-                    size={24}
-                    color="#F97316"
-                    variant="solid"
-                  />
-                  <Text className="text-[#1E293B] font-generalsans-bold text-[32px] mx-1 leading-10">
-                    {currentStreak}
-                  </Text>
-                  <HugeiconsIcon
-                    icon={LaurelWreathRight01Icon}
-                    size={24}
-                    color="#F97316"
-                    variant="solid"
-                  />
-                </View>
-                <Text className="text-[#64748B] text-[9px] font-generalsans-semibold mt-0.5">
-                  days
-                </Text>
-              </View>
-            </View>
-            {/* Best */}
-            <View className="flex-1 h-[110px] rounded-[24px] overflow-hidden relative">
-              <GlassView
-                glassEffectStyle="regular"
-                style={StyleSheet.absoluteFillObject}
-              />
-              <View className="absolute inset-0 bg-white/30" />
-              <View className="flex-1 items-center justify-center py-2 border border-white/40 rounded-[24px]">
-                <View className="flex-row items-center gap-1.5 mb-1 opacity-80">
-                  <HugeiconsIcon
-                    icon={ChampionIcon}
-                    size={12}
-                    color="#1E293B"
-                    variant="solid"
-                  />
-                  <Text className="text-[#1E293B] text-[10px] font-generalsans-bold uppercase tracking-wider">
-                    Best
-                  </Text>
-                </View>
-                <View className="flex-row items-center mt-1">
-                  <HugeiconsIcon
-                    icon={LaurelWreathLeft01Icon}
-                    size={24}
-                    color="#EAB308"
-                    variant="solid"
-                  />
-                  <Text className="text-[#1E293B] font-generalsans-bold text-[32px] mx-1 leading-10">
-                    {bestStreak}
-                  </Text>
-                  <HugeiconsIcon
-                    icon={LaurelWreathRight01Icon}
-                    size={24}
-                    color="#EAB308"
-                    variant="solid"
-                  />
-                </View>
-                <Text className="text-[#64748B] text-[9px] font-generalsans-semibold mt-0.5">
-                  record
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* GRAPH */}
-          <View
-            className="rounded-[24px] overflow-hidden px-2 pt-4 pb-2 border border-white/40"
-            style={{ backgroundColor: "rgba(255, 255, 255, 0.3)" }}
-          >
-            <View className="h-[100px] justify-center">
-              <Svg
-                height={GRAPH_HEIGHT}
-                width={GRAPH_WIDTH}
-                style={{ alignSelf: "center", overflow: "visible" }}
-              >
-                <SvgLine
-                  x1="12"
-                  y1={GRAPH_HEIGHT / 2}
-                  x2={GRAPH_WIDTH - 12}
-                  y2={GRAPH_HEIGHT / 2}
-                  stroke="#1E293B"
-                  strokeOpacity="0.05"
-                  strokeDasharray="4 4"
-                />
-                <Path
-                  d={path}
-                  stroke="rgba(0,0,0,0.1)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  fill="none"
-                  y="4"
-                />
-                <Path
-                  d={path}
-                  stroke={categoryColor}
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  fill="none"
-                />
-                {timeRange === "week" &&
-                  points.map((point: any, i: number) => (
-                    <Circle
-                      key={i}
-                      cx={point.x}
-                      cy={point.y}
-                      r="2.5"
-                      fill="white"
-                      stroke={categoryColor}
-                      strokeWidth="1.5"
-                      opacity={i === points.length - 1 ? 0 : 1}
-                    />
-                  ))}
-                {displayHistory.length > 0 && (
-                  <>
-                    <Circle
-                      cx={lastPoint.x}
-                      cy={lastPoint.y + 4}
-                      r="6"
-                      fill="rgba(0,0,0,0.1)"
-                    />
-                    <Circle
-                      cx={lastPoint.x}
-                      cy={lastPoint.y}
-                      r="6"
-                      fill="white"
-                      stroke={categoryColor}
-                      strokeWidth="3"
-                    />
-                  </>
-                )}
-              </Svg>
-            </View>
-            <View className="flex-row justify-between mt-2 px-2">
-              {displayHistory.map((d: any, i: number) => {
-                if (
-                  timeRange !== "week" &&
-                  i !== 0 &&
-                  i !== displayHistory.length - 1 &&
-                  i % 6 !== 0
-                )
-                  return null;
-                return (
-                  <Text
-                    key={i}
-                    className={`text-[9px] font-generalsans-bold uppercase w-6 text-center ${i === displayHistory.length - 1 ? "text-[#1E293B]" : "text-[#64748B]/70"}`}
-                  >
-                    {d.day}
-                  </Text>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-      </View>
+        }
+      />
     </Animated.View>
   );
 }
+
+// --- STATS VIEW ---
+function StatsView() {
+  const resolutions = useQuery(api.resolutions.getResolutionAnalytics) || [];
+
+  return (
+    <Animated.View entering={FadeIn} style={{ flex: 1 }}>
+      <FlatList
+        data={resolutions}
+        keyExtractor={(item) => item._id}
+        contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item, index }) => {
+          const cat = CATEGORIES[item.categoryKey] || { icon: "✨", color: ACCENT_ORANGE, bg: "#FFF7ED" };
+          const streak = item.currentStreak || 0;
+          const best = item.bestStreak || streak;
+          const history = item.history?.slice(-7) || [];
+          const avg = history.length > 0
+            ? Math.round(history.reduce((sum: number, h: any) => sum + h.value, 0) / history.length)
+            : 0;
+
+          return (
+            <Animated.View entering={FadeInDown.delay(index * 60)} style={styles.statCard}>
+              {/* Header */}
+              <View style={styles.statHeader}>
+                <View style={[styles.statIcon, { backgroundColor: cat.bg }]}>
+                  <Text style={{ fontSize: 20 }}>{cat.icon}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statTitle}>{item.title}</Text>
+                  <Text style={styles.statSubtitle}>Last 7 days • {avg}% avg</Text>
+                </View>
+              </View>
+
+              {/* Streaks */}
+              <View style={styles.streakRow}>
+                <View style={styles.streakBox}>
+                  <Text style={{ fontSize: 20 }}>🔥</Text>
+                  <Text style={styles.streakNum}>{streak}</Text>
+                  <Text style={styles.streakLabel}>Current</Text>
+                </View>
+                <View style={styles.streakBox}>
+                  <Text style={{ fontSize: 20 }}>🏆</Text>
+                  <Text style={styles.streakNum}>{best}</Text>
+                  <Text style={styles.streakLabel}>Best</Text>
+                </View>
+              </View>
+
+              {/* Smooth Line Graph */}
+              <LineGraph data={history} color={cat.color} />
+            </Animated.View>
+          );
+        }}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={{ fontSize: 48 }}>📊</Text>
+            <Text style={styles.emptyTitle}>No Stats Yet</Text>
+            <Text style={styles.emptySubtitle}>Start tracking goals to see analytics</Text>
+          </View>
+        }
+      />
+    </Animated.View>
+  );
+}
+
+// --- LINE GRAPH COMPONENT ---
+function LineGraph({ data, color }: { data: { value: number; day: string }[]; color: string }) {
+  const GRAPH_WIDTH = SCREEN_WIDTH - 80;
+  const GRAPH_HEIGHT = 100;
+
+  const { path, lastPoint, points } = useMemo(
+    () => createSmoothPath(data, GRAPH_WIDTH, GRAPH_HEIGHT, 12),
+    [data, GRAPH_WIDTH]
+  );
+
+  if (data.length === 0) return null;
+
+  return (
+    <View style={{ backgroundColor: "#F9FAFB", borderRadius: 20, padding: 12, paddingBottom: 8 }}>
+      <View style={{ height: GRAPH_HEIGHT }}>
+        <Svg height={GRAPH_HEIGHT} width={GRAPH_WIDTH} style={{ alignSelf: "center" }}>
+          {/* Center line */}
+          <SvgLine
+            x1="12"
+            y1={GRAPH_HEIGHT / 2}
+            x2={GRAPH_WIDTH - 12}
+            y2={GRAPH_HEIGHT / 2}
+            stroke="#E5E7EB"
+            strokeDasharray="4 4"
+          />
+          {/* Shadow */}
+          <Path d={path} stroke="rgba(0,0,0,0.08)" strokeWidth="4" strokeLinecap="round" fill="none" y="3" />
+          {/* Main line */}
+          <Path d={path} stroke={color} strokeWidth="3" strokeLinecap="round" fill="none" />
+          {/* Dots */}
+          {points.map((p: any, i: number) => (
+            <Circle
+              key={i}
+              cx={p.x}
+              cy={p.y}
+              r={i === points.length - 1 ? 5 : 3}
+              fill="#FFFFFF"
+              stroke={color}
+              strokeWidth={i === points.length - 1 ? 3 : 2}
+            />
+          ))}
+        </Svg>
+      </View>
+      {/* Day labels */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6, paddingHorizontal: 4 }}>
+        {data.map((d, i) => (
+          <Text
+            key={i}
+            style={{
+              fontFamily: "Nunito-Bold",
+              fontSize: 10,
+              color: i === data.length - 1 ? TEXT_PRIMARY : TEXT_SECONDARY,
+              textAlign: "center",
+              width: 20,
+            }}
+          >
+            {d.day}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// --- REWARDS VIEW ---
+function RewardsView() {
+  const user = useQuery(api.users.currentUser);
+  const currentStreak = user?.currentStreak || 0;
+
+  return (
+    <Animated.View entering={FadeIn} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+        {/* Current Streak */}
+        <View style={styles.streakHero}>
+          <Text style={{ fontSize: 48 }}>🔥</Text>
+          <Text style={styles.heroNum}>{currentStreak}</Text>
+          <Text style={styles.heroLabel}>Day Streak</Text>
+        </View>
+
+        {/* Milestones */}
+        <Text style={styles.sectionTitle}>Streak Rewards</Text>
+
+        {MILESTONES.map((m, index) => {
+          const unlocked = currentStreak >= m.days;
+          return (
+            <Animated.View
+              key={m.days}
+              entering={FadeInUp.delay(index * 60)}
+              style={[styles.milestoneRow, !unlocked && { opacity: 0.5 }]}
+            >
+              <View style={styles.milestoneLeft}>
+                <View style={[styles.milestoneIcon, unlocked && { backgroundColor: "#FEF3C7", borderColor: "#FDE68A" }]}>
+                  <Text style={{ fontSize: 20 }}>{m.emoji}</Text>
+                </View>
+                <View>
+                  <Text style={styles.milestoneDays}>{m.days} Day Streak</Text>
+                  <Text style={styles.milestoneStatus}>{unlocked ? "Achieved! ✓" : "Locked"}</Text>
+                </View>
+              </View>
+              <View style={[styles.xpBadge, unlocked && { backgroundColor: "#ECFDF5" }]}>
+                <Text style={[styles.xpText, unlocked && { color: "#22C55E" }]}>+{m.xp} XP</Text>
+              </View>
+            </Animated.View>
+          );
+        })}
+
+        {/* Info */}
+        <View style={styles.infoBox}>
+          <Text style={styles.infoTitle}>💡 How It Works</Text>
+          <Text style={styles.infoText}>• Complete at least one task daily to keep your streak</Text>
+          <Text style={styles.infoText}>• Reach milestones to earn bonus XP</Text>
+          <Text style={styles.infoText}>• Missing a day resets your streak to 0</Text>
+        </View>
+      </ScrollView>
+    </Animated.View>
+  );
+}
+
+// --- LOCKED OVERLAY ---
+function LockedOverlay({ onUnlock }: { onUnlock: () => void }) {
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <BlurView intensity={40} tint="light" style={StyleSheet.absoluteFill} />
+      <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(255,255,255,0.7)" }} />
+      <View style={styles.lockedContent}>
+        <View style={styles.lockIcon}>
+          <Text style={{ fontSize: 40 }}>🔒</Text>
+        </View>
+        <Text style={styles.lockTitle}>Premium Feature</Text>
+        <Text style={styles.lockSubtitle}>Unlock analytics, the Vault, and streak rewards</Text>
+        <TouchableOpacity onPress={onUnlock} style={styles.unlockBtn}>
+          <Text style={styles.unlockBtnText}>Unlock Premium</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: BG_COLOR,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 22,
+    color: TEXT_PRIMARY,
+  },
+  tabContainer: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 999,
+    padding: 4,
+    marginBottom: 16,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 999,
+  },
+  tabActive: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabText: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 13,
+    color: TEXT_SECONDARY,
+  },
+  tabTextActive: {
+    color: TEXT_PRIMARY,
+  },
+  filterRow: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  filterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  filterText: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 13,
+    lineHeight: 16,
+    color: TEXT_PRIMARY,
+  },
+  empty: {
+    alignItems: "center",
+    paddingTop: 80,
+  },
+  emptyTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 18,
+    color: TEXT_PRIMARY,
+    marginTop: 16,
+  },
+  emptySubtitle: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 14,
+    color: TEXT_SECONDARY,
+    marginTop: 4,
+  },
+  statCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 16,
+  },
+  statIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 16,
+    color: TEXT_PRIMARY,
+  },
+  statSubtitle: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+    marginTop: 2,
+  },
+  streakRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  streakBox: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    padding: 14,
+    alignItems: "center",
+  },
+  streakNum: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 28,
+    color: TEXT_PRIMARY,
+    marginTop: 4,
+  },
+  streakLabel: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 11,
+    color: TEXT_SECONDARY,
+  },
+  chartRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    height: 60,
+    alignItems: "flex-end",
+  },
+  chartBarContainer: {
+    flex: 1,
+    alignItems: "center",
+  },
+  chartBar: {
+    width: 20,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  chartLabel: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 9,
+    color: TEXT_SECONDARY,
+  },
+  streakHero: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    padding: 32,
+    marginBottom: 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  heroNum: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 64,
+    color: TEXT_PRIMARY,
+    marginTop: 8,
+  },
+  heroLabel: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 16,
+    color: TEXT_SECONDARY,
+  },
+  sectionTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 18,
+    color: TEXT_PRIMARY,
+    marginBottom: 16,
+  },
+  milestoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 999,
+    padding: 12,
+    paddingRight: 16,
+    marginBottom: 10,
+  },
+  milestoneLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  milestoneIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+  },
+  milestoneDays: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 15,
+    color: TEXT_PRIMARY,
+  },
+  milestoneStatus: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+  },
+  xpBadge: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  xpText: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 14,
+    color: TEXT_SECONDARY,
+  },
+  infoBox: {
+    backgroundColor: "#FFF7ED",
+    borderRadius: 20,
+    padding: 18,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: "#FFEDD5",
+  },
+  infoTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 15,
+    color: ACCENT_ORANGE,
+    marginBottom: 10,
+  },
+  infoText: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 13,
+    color: "#9A3412",
+    marginBottom: 4,
+  },
+  lockedContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  lockIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#FFF7ED",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  lockTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 24,
+    color: TEXT_PRIMARY,
+    marginBottom: 8,
+  },
+  lockSubtitle: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 15,
+    color: TEXT_SECONDARY,
+    textAlign: "center",
+    marginBottom: 28,
+  },
+  unlockBtn: {
+    backgroundColor: ACCENT_ORANGE,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 999,
+    shadowColor: ACCENT_ORANGE,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  unlockBtnText: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+});

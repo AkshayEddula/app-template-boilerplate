@@ -1,12 +1,11 @@
 import { api } from "@/convex/_generated/api";
-import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "convex/react";
 import { BlurView } from "expo-blur";
 import { useMemo } from "react";
 import { Dimensions, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
-// Theme Colors
+// Theme
 const BG_COLOR = "#FAF9F6";
 const TEXT_PRIMARY = "#1A1A1A";
 const TEXT_SECONDARY = "#6B7280";
@@ -15,14 +14,13 @@ const SUCCESS_GREEN = "#22C55E";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// Category Config
-const CATEGORY_STYLES: Record<string, { color: string; icon: string; bg: string }> = {
-    health: { color: "#10B981", icon: "💧", bg: "#ECFDF5" },
-    mind: { color: "#8B5CF6", icon: "🧘", bg: "#F5F3FF" },
-    career: { color: "#3B82F6", icon: "💼", bg: "#EFF6FF" },
-    life: { color: "#F59E0B", icon: "🌟", bg: "#FFFBEB" },
-    fun: { color: "#EC4899", icon: "🎮", bg: "#FDF2F8" },
-    default: { color: ACCENT_ORANGE, icon: "✨", bg: "#FFF7ED" },
+// Categories
+const CATEGORIES: Record<string, { icon: string; color: string; bg: string }> = {
+    health: { icon: "💧", color: "#10B981", bg: "#ECFDF5" },
+    mind: { icon: "🧘", color: "#8B5CF6", bg: "#F5F3FF" },
+    career: { icon: "💼", color: "#3B82F6", bg: "#EFF6FF" },
+    life: { icon: "🌟", color: "#F59E0B", bg: "#FFFBEB" },
+    fun: { icon: "🎮", color: "#EC4899", bg: "#FDF2F8" },
 };
 
 export const XPModal = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
@@ -31,10 +29,10 @@ export const XPModal = ({ visible, onClose }: { visible: boolean; onClose: () =>
     const totals = useMemo(() => {
         return stats.reduce(
             (acc, curr) => ({
-                grandTotal: acc.grandTotal + (curr.totalXp || 0),
-                todayTotal: acc.todayTotal + (curr.todayXp || 0),
+                total: acc.total + (curr.totalXp || 0),
+                today: acc.today + (curr.todayXp || 0),
             }),
-            { grandTotal: 0, todayTotal: 0 }
+            { total: 0, today: 0 }
         );
     }, [stats]);
 
@@ -48,84 +46,60 @@ export const XPModal = ({ visible, onClose }: { visible: boolean; onClose: () =>
 
             {/* Sheet */}
             <Animated.View entering={FadeInDown.duration(300)} style={styles.sheet}>
-                {/* Handle */}
-                <View style={styles.handleContainer}>
-                    <View style={styles.handle} />
-                </View>
+                <View style={styles.handle} />
 
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
                     {/* Header */}
                     <View style={styles.header}>
-                        <View style={styles.trophyCircle}>
-                            <Text style={{ fontSize: 40 }}>🏆</Text>
-                        </View>
-                        <Text style={styles.totalXp}>{totals.grandTotal.toLocaleString()}</Text>
-                        <Text style={styles.totalLabel}>Total XP</Text>
-
-                        {totals.todayTotal > 0 && (
-                            <View style={styles.todayBadge}>
-                                <Ionicons name="arrow-up" size={14} color={SUCCESS_GREEN} />
-                                <Text style={styles.todayText}>+{totals.todayTotal} XP today</Text>
+                        <Text style={{ fontSize: 40 }}>🏆</Text>
+                        <Text style={styles.totalXp}>{totals.total.toLocaleString()}</Text>
+                        <Text style={styles.label}>Total XP</Text>
+                        {totals.today > 0 && (
+                            <View style={styles.todayPill}>
+                                <Text style={styles.todayText}>+{totals.today} today</Text>
                             </View>
                         )}
                     </View>
 
                     {/* Categories */}
-                    <View style={styles.categoriesContainer}>
-                        <Text style={styles.sectionTitle}>By Category</Text>
+                    <Text style={styles.sectionTitle}>By Category</Text>
 
-                        {stats.map((item, index) => {
-                            const config = CATEGORY_STYLES[item.categoryKey] || CATEGORY_STYLES.default;
-                            const level = Math.floor(item.totalXp / 500) + 1;
-                            const progressToNext = (item.totalXp % 500) / 500;
+                    {stats.map((item, index) => {
+                        const cat = CATEGORIES[item.categoryKey] || { icon: "✨", color: ACCENT_ORANGE, bg: "#FFF7ED" };
+                        const level = Math.floor(item.totalXp / 500) + 1;
+                        const progress = (item.totalXp % 500) / 500;
 
-                            return (
-                                <Animated.View
-                                    key={item.categoryKey}
-                                    entering={FadeIn.delay(index * 80)}
-                                    style={styles.categoryCard}
-                                >
-                                    {/* Left: Icon */}
-                                    <View style={[styles.categoryIcon, { backgroundColor: config.bg }]}>
-                                        <Text style={{ fontSize: 24 }}>{config.icon}</Text>
-                                    </View>
+                        return (
+                            <Animated.View key={item.categoryKey} entering={FadeIn.delay(index * 50)} style={styles.row}>
+                                {/* Icon */}
+                                <View style={[styles.iconCircle, { backgroundColor: cat.bg }]}>
+                                    <Text style={{ fontSize: 20 }}>{cat.icon}</Text>
+                                </View>
 
-                                    {/* Middle: Info */}
-                                    <View style={styles.categoryInfo}>
-                                        <Text style={styles.categoryName}>
+                                {/* Info */}
+                                <View style={styles.rowInfo}>
+                                    <View style={styles.rowTop}>
+                                        <Text style={styles.catName}>
                                             {item.categoryKey.charAt(0).toUpperCase() + item.categoryKey.slice(1)}
                                         </Text>
-                                        <Text style={styles.levelText}>Level {level}</Text>
+                                        <Text style={[styles.xpNum, { color: cat.color }]}>{item.totalXp}</Text>
+                                    </View>
 
-                                        {/* Progress Bar */}
+                                    {/* Progress */}
+                                    <View style={styles.progressRow}>
                                         <View style={styles.progressBg}>
-                                            <View
-                                                style={[
-                                                    styles.progressFill,
-                                                    { width: `${progressToNext * 100}%`, backgroundColor: config.color },
-                                                ]}
-                                            />
+                                            <View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: cat.color }]} />
                                         </View>
+                                        <Text style={styles.levelText}>Lv {level}</Text>
                                     </View>
+                                </View>
+                            </Animated.View>
+                        );
+                    })}
 
-                                    {/* Right: XP */}
-                                    <View style={styles.xpContainer}>
-                                        <Text style={[styles.xpValue, { color: config.color }]}>
-                                            {item.totalXp.toLocaleString()}
-                                        </Text>
-                                        <Text style={styles.xpLabel}>XP</Text>
-                                        {item.todayXp > 0 && (
-                                            <Text style={styles.todayXpText}>+{item.todayXp}</Text>
-                                        )}
-                                    </View>
-                                </Animated.View>
-                            );
-                        })}
-                    </View>
-
-                    {/* Close Button */}
-                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <Text style={styles.closeButtonText}>Close</Text>
+                    {/* Close */}
+                    <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                        <Text style={styles.closeBtnText}>Close</Text>
                     </TouchableOpacity>
                 </ScrollView>
             </Animated.View>
@@ -139,148 +113,118 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        height: SCREEN_HEIGHT * 0.75,
+        height: SCREEN_HEIGHT * 0.7,
         backgroundColor: BG_COLOR,
         borderTopLeftRadius: 32,
         borderTopRightRadius: 32,
-        overflow: "hidden",
-    },
-    handleContainer: {
-        alignItems: "center",
-        paddingVertical: 12,
     },
     handle: {
         width: 40,
         height: 5,
-        borderRadius: 3,
+        borderRadius: 999,
         backgroundColor: "#D1D5DB",
+        alignSelf: "center",
+        marginTop: 12,
     },
     header: {
         alignItems: "center",
-        paddingVertical: 24,
-        paddingHorizontal: 20,
-    },
-    trophyCircle: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: "#FEF3C7",
-        alignItems: "center",
-        justifyContent: "center",
-        marginBottom: 16,
+        marginBottom: 28,
     },
     totalXp: {
         fontFamily: "Nunito-Bold",
-        fontSize: 56,
+        fontSize: 48,
         color: TEXT_PRIMARY,
-        lineHeight: 60,
+        marginTop: 8,
     },
-    totalLabel: {
-        fontFamily: "Nunito-SemiBold",
-        fontSize: 16,
+    label: {
+        fontFamily: "Nunito-Medium",
+        fontSize: 14,
         color: TEXT_SECONDARY,
-        marginTop: 4,
     },
-    todayBadge: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
+    todayPill: {
         backgroundColor: "#ECFDF5",
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 6,
         borderRadius: 999,
-        marginTop: 16,
+        marginTop: 12,
     },
     todayText: {
         fontFamily: "Nunito-Bold",
-        fontSize: 14,
+        fontSize: 13,
         color: SUCCESS_GREEN,
-    },
-    categoriesContainer: {
-        paddingHorizontal: 20,
     },
     sectionTitle: {
         fontFamily: "Nunito-Bold",
-        fontSize: 18,
+        fontSize: 16,
         color: TEXT_PRIMARY,
-        marginBottom: 16,
+        marginBottom: 14,
     },
-    categoryCard: {
+    row: {
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: "#FFFFFF",
-        borderRadius: 20,
-        padding: 16,
-        marginBottom: 12,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        elevation: 2,
+        borderRadius: 999,
+        padding: 12,
+        paddingRight: 18,
+        marginBottom: 10,
+        gap: 12,
     },
-    categoryIcon: {
-        width: 56,
-        height: 56,
-        borderRadius: 18,
+    iconCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         alignItems: "center",
         justifyContent: "center",
-        marginRight: 14,
     },
-    categoryInfo: {
+    rowInfo: {
         flex: 1,
     },
-    categoryName: {
+    rowTop: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 6,
+    },
+    catName: {
         fontFamily: "Nunito-Bold",
-        fontSize: 16,
+        fontSize: 15,
         color: TEXT_PRIMARY,
     },
-    levelText: {
-        fontFamily: "Nunito-Medium",
-        fontSize: 12,
-        color: TEXT_SECONDARY,
-        marginBottom: 8,
+    xpNum: {
+        fontFamily: "Nunito-Bold",
+        fontSize: 16,
+    },
+    progressRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
     },
     progressBg: {
+        flex: 1,
         height: 6,
         backgroundColor: "#E5E7EB",
-        borderRadius: 3,
+        borderRadius: 999,
         overflow: "hidden",
     },
     progressFill: {
         height: "100%",
-        borderRadius: 3,
+        borderRadius: 999,
     },
-    xpContainer: {
-        alignItems: "flex-end",
-        marginLeft: 12,
-    },
-    xpValue: {
+    levelText: {
         fontFamily: "Nunito-Bold",
-        fontSize: 20,
-    },
-    xpLabel: {
-        fontFamily: "Nunito-Medium",
         fontSize: 11,
         color: TEXT_SECONDARY,
-        marginTop: -2,
     },
-    todayXpText: {
-        fontFamily: "Nunito-Bold",
-        fontSize: 12,
-        color: SUCCESS_GREEN,
-        marginTop: 4,
-    },
-    closeButton: {
-        marginTop: 24,
-        marginHorizontal: 20,
+    closeBtn: {
         backgroundColor: "#F3F4F6",
         paddingVertical: 16,
         borderRadius: 999,
         alignItems: "center",
+        marginTop: 20,
     },
-    closeButtonText: {
+    closeBtnText: {
         fontFamily: "Nunito-Bold",
-        fontSize: 16,
+        fontSize: 15,
         color: TEXT_SECONDARY,
     },
 });

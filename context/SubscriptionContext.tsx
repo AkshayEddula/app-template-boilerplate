@@ -169,7 +169,7 @@ export const SubscriptionProvider = ({
   return (
     <SubscriptionContext.Provider
       value={{
-        isPremium: true,
+        isPremium,
         isLoading,
         offerings,
         customerInfo,

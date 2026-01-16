@@ -4,162 +4,66 @@ import { useSubscription } from "@/context/SubscriptionContext";
 import { api } from "@/convex/_generated/api";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  ArrowRight01Icon,
-  Delete02Icon,
-  Logout01Icon,
-  Mail01Icon,
-  Shield01Icon
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react-native";
 import { useMutation, useQuery } from "convex/react";
 import Constants from "expo-constants";
-import { GlassView } from "expo-glass-effect";
-import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import { setStatusBarStyle } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Image,
   ScrollView,
-  StatusBar,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import Animated, {
-  FadeInUp
-} from "react-native-reanimated";
+import Animated, { FadeIn, FadeInUp } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// --- COMPONENTS ---
-
-const StatCard = ({
-  label,
-  value,
-  sublabel,
-  delay = 0,
-}: {
-  label: string;
-  value: string | number;
-  sublabel?: string;
-  delay?: number;
-}) => (
-  <Animated.View
-    entering={FadeInUp.delay(delay).duration(500)}
-    className="flex-1"
-  >
-    <GlassView
-      glassEffectStyle="regular"
-      tintColor="#3A7AFE" // Consistent tint
-      style={{
-        borderRadius: 24,
-        overflow: "hidden",
-        height: 100,
-      }}
-    >
-      <View className="flex-1 items-center justify-center p-3 bg-white/5">
-        <Text className="text-white/60 font-generalsans-medium text-[11px] uppercase tracking-wide mb-1">
-          {label}
-        </Text>
-        <Text className="text-white font-generalsans-bold text-3xl">
-          {value}
-        </Text>
-        {sublabel && (
-          <Text className="text-white/40 font-generalsans-medium text-[10px] mt-1">
-            {sublabel}
-          </Text>
-        )}
-      </View>
-    </GlassView>
-  </Animated.View>
-);
-
-const MenuRow = ({
-  icon,
-  label,
-  value,
-  onPress,
-  isDestructive = false,
-  showArrow = true,
-}: any) => (
-  <TouchableOpacity
-    activeOpacity={0.7}
-    onPress={onPress}
-    className="flex-row items-center justify-between py-4 border-b border-white/5 last:border-0"
-  >
-    <View className="flex-row items-center gap-3.5">
-      <View
-        className={`w-9 h-9 rounded-full items-center justify-center ${isDestructive ? "bg-red-500/10" : "bg-white/10"}`}
-      >
-        <HugeiconsIcon
-          icon={icon}
-          size={18}
-          color={isDestructive ? "#EF4444" : "white"}
-        />
-      </View>
-      <Text
-        className={`font-generalsans-medium text-[15px] ${isDestructive ? "text-red-400" : "text-white"}`}
-      >
-        {label}
-      </Text>
-    </View>
-
-    <View className="flex-row items-center gap-2">
-      {value && (
-        <Text className="text-white/50 text-[13px] font-generalsans-medium text-right max-w-[150px]" numberOfLines={1}>
-          {value}
-        </Text>
-      )}
-      {showArrow && (
-        <HugeiconsIcon
-          icon={ArrowRight01Icon}
-          size={20}
-          color="rgba(255,255,255,0.2)"
-        />
-      )}
-    </View>
-  </TouchableOpacity>
-);
-
-// --- MODALS ---
-
-
-// --- MAIN SCREEN ---
+// Theme
+const BG_COLOR = "#FAF9F6";
+const TEXT_PRIMARY = "#1A1A1A";
+const TEXT_SECONDARY = "#6B7280";
+const ACCENT_ORANGE = "#F97316";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user: clerkUser } = useUser();
   const { signOut } = useAuth();
   const { isPremium } = useSubscription();
-
-  // Queries
   const { isGuest, logoutGuest, guestResolutions } = useGuest();
 
-  // Queries
   const convexUser = useQuery(api.users.currentUser);
-  const user = isGuest ? { name: "Guest User", email: undefined, currentStreak: 0, _id: "guest" } : convexUser;
+  const user = isGuest
+    ? { name: "Guest User", email: undefined, currentStreak: 0, _id: "guest" }
+    : convexUser;
 
   const stats = useQuery(api.stats.getMyStats, isGuest ? "skip" : undefined);
-  const convexResolutions = useQuery(api.userResolutions.listActive, isGuest ? "skip" : undefined);
+  const convexResolutions = useQuery(
+    api.userResolutions.listActive,
+    isGuest ? "skip" : undefined
+  );
   const resolutions = isGuest ? guestResolutions : convexResolutions;
 
-  // Mutations
   const deleteUserMutation = useMutation(api.users.deleteUser);
 
-  // State
-  const [editModalVisible, setEditModalVisible] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Computed
   const totalXP = useMemo(() => {
     if (!stats) return 0;
     return stats.reduce((acc, curr) => acc + (curr.totalXp || 0), 0);
   }, [stats]);
 
   const activeGoalsCount = resolutions?.length || 0;
+
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle("dark");
+    }, [])
+  );
 
   const handleSignOut = async () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -192,7 +96,7 @@ export default function ProfileScreen() {
             try {
               setIsDeleting(true);
               if (isGuest) {
-                await logoutGuest(); // Just clear local data
+                await logoutGuest();
                 router.replace("/(auth)/sign-up");
                 return;
               }
@@ -209,217 +113,411 @@ export default function ProfileScreen() {
     );
   };
 
-  const openLink = (url: string) => Linking.openURL(url);
-
   return (
-    <View className="flex-1 bg-[#3A7AFE]">
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-
+    <View style={styles.container}>
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
         <ScrollView
-          contentContainerStyle={{ paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
-          className="flex-1"
+          contentContainerStyle={{ paddingBottom: 40 }}
         >
-          <View className="w-full max-w-[600px] self-center">
-            {/* --- HEADER --- */}
-            <View className="items-center pt-4 pb-8 px-6">
-              {/* Avatar Ring */}
-              <View className="relative mb-5">
-                {/* Glow behind */}
-                <View className="absolute inset-0 bg-white/20 rounded-full blur-xl scale-125" />
+          <View style={{ maxWidth: 600, alignSelf: "center", width: "100%" }}>
+            {/* Header */}
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <Ionicons name="chevron-back" size={22} color={TEXT_PRIMARY} />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Profile</Text>
+              <View style={{ width: 44 }} />
+            </View>
 
-                <View className="w-28 h-28 rounded-full bg-white/10 border-[4px] border-white/20 items-center justify-center overflow-hidden p-1">
-                  <View className="w-full h-full rounded-full overflow-hidden bg-[#3A7AFE]">
-                    {clerkUser?.imageUrl ? (
-                      <Image
-                        source={{ uri: clerkUser.imageUrl }}
-                        className="w-full h-full"
-                      />
-                    ) : (
-                      <View className="items-center justify-center flex-1">
-                        <Text className="text-4xl font-generalsans-bold text-white">
-                          {user?.name?.charAt(0) || "U"}
-                        </Text>
-                      </View>
-                    )}
+            {/* Profile Card */}
+            <Animated.View entering={FadeIn} style={styles.profileCard}>
+              {/* Avatar */}
+              <View style={styles.avatarContainer}>
+                {clerkUser?.imageUrl ? (
+                  <Image source={{ uri: clerkUser.imageUrl }} style={styles.avatar} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarText}>{user?.name?.charAt(0) || "U"}</Text>
                   </View>
-                </View>
-
+                )}
               </View>
 
-              {/* Name & Badge */}
-              <View className="items-center gap-1.5">
-                <View className="flex-row items-center gap-2">
-                  <Text className="text-white text-3xl font-generalsans-bold tracking-tight">
-                    {user?.name || "User"}
-                  </Text>
-
-                  {/* Premium Badge */}
-                  {isPremium ? (
-                    <View className="bg-yellow-400/20 px-2 py-0.5 rounded-full border border-yellow-400/50">
-                      <Text className="text-yellow-300 text-[10px] font-generalsans-bold uppercase tracking-widest">Premium</Text>
-                    </View>
-                  ) : (
-                    <TouchableOpacity onPress={() => setPaywallVisible(true)}>
-                      <View className="bg-white/20 px-2 py-0.5 rounded-full border border-white/30">
-                        <Text className="text-white text-[10px] font-generalsans-bold uppercase tracking-widest">Free</Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                <Text className="text-white/60 font-generalsans-medium text-base">
-                  {isGuest ? "Local Guest Account" : (user?.email || clerkUser?.primaryEmailAddress?.emailAddress)}
-                </Text>
+              {/* Name & Email */}
+              <View style={styles.nameRow}>
+                <Text style={styles.userName}>{user?.name || "User"}</Text>
+                {isPremium && (
+                  <View style={styles.premiumBadge}>
+                    <Text style={{ fontSize: 10 }}>⭐</Text>
+                    <Text style={styles.premiumText}>Premium</Text>
+                  </View>
+                )}
               </View>
-            </View>
+              <Text style={styles.userEmail}>
+                {isGuest
+                  ? "Local Guest Account"
+                  : user?.email || clerkUser?.primaryEmailAddress?.emailAddress}
+              </Text>
 
-            {/* --- STATS ROW --- */}
-            <View className="flex-row gap-3 px-6 mb-8">
-              <StatCard label="Streak" value={user?.currentStreak || 0} sublabel="Day Streak" delay={0} />
-              <StatCard label="Total XP" value={totalXP.toLocaleString()} sublabel="Lifetime XP" delay={100} />
-              <StatCard label="Active" value={activeGoalsCount} sublabel="Goals" delay={200} />
-            </View>
+              {/* Stats Row */}
+              <View style={styles.statsRow}>
+                <View style={styles.statBox}>
+                  <Text style={{ fontSize: 20 }}>🔥</Text>
+                  <Text style={styles.statNum}>{user?.currentStreak || 0}</Text>
+                  <Text style={styles.statLabel}>Streak</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statBox}>
+                  <Text style={{ fontSize: 20 }}>⚡</Text>
+                  <Text style={styles.statNum}>{totalXP.toLocaleString()}</Text>
+                  <Text style={styles.statLabel}>Total XP</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statBox}>
+                  <Text style={{ fontSize: 20 }}>🎯</Text>
+                  <Text style={styles.statNum}>{activeGoalsCount}</Text>
+                  <Text style={styles.statLabel}>Goals</Text>
+                </View>
+              </View>
+            </Animated.View>
 
-            {/* --- UPGRADE BANNER (Free Users Only) --- */}
+            {/* Upgrade Banner */}
             {!isPremium && (
-              <Animated.View entering={FadeInUp.delay(300)} className="px-6 mb-8">
+              <Animated.View entering={FadeInUp.delay(100)}>
                 <TouchableOpacity
-                  activeOpacity={0.8}
                   onPress={() => setPaywallVisible(true)}
+                  style={styles.upgradeBanner}
+                  activeOpacity={0.8}
                 >
-                  <GlassView
-                    glassEffectStyle="regular"
-                    tintColor="#ffdd1fff"
-                    style={{ borderRadius: 24, overflow: "hidden" }}
-                  >
-                    <View className="p-5 flex-row items-center justify-between bg-yellow-500/10">
-                      <View className="flex-1 mr-4">
-                        <View className="flex-row items-center gap-2 mb-1">
-                          <Text className="text-white font-generalsans-bold text-lg">
-                            Upgrade to Pro
-                          </Text>
-                          <View className="bg-yellow-400 px-2 py-0.5 rounded-full">
-                            <Text className="text-black text-[10px] font-generalsans-bold uppercase tracking-widest">
-                              New
-                            </Text>
-                          </View>
-                        </View>
-                        <Text className="text-white font-generalsans-medium text-xs leading-5">
-                          Unlock unlimited resolutions, advanced stats, and exclusive icons.
-                        </Text>
-                      </View>
-                      <View className="w-10 h-10 rounded-full bg-yellow-400 items-center justify-center shadow-lg shadow-yellow-500/20">
-                        <Ionicons name="arrow-forward" size={20} color="#000" />
-                      </View>
-                    </View>
-                  </GlassView>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.upgradeTitle}>Upgrade to Premium ✨</Text>
+                    <Text style={styles.upgradeSubtitle}>
+                      Unlock unlimited resolutions, advanced analytics, and more
+                    </Text>
+                  </View>
+                  <View style={styles.upgradeArrow}>
+                    <Ionicons name="arrow-forward" size={20} color="#FFF" />
+                  </View>
                 </TouchableOpacity>
               </Animated.View>
             )}
 
-
-            {/* --- SETTINGS GROUPS --- */}
-
-            <View className="px-6 space-y-6 gap-y-6">
-              {/* Account */}
-              <View>
-                <Text className="text-white/40 text-[11px] font-generalsans-bold uppercase tracking-wider mb-3 ml-2">
-                  Account
-                </Text>
-                <GlassView
-                  glassEffectStyle="regular"
-                  tintColor="#3A7AFE"
-                  style={{ borderRadius: 24, overflow: "hidden" }}
-                >
-                  <View className="px-5 py-1 bg-white/5">
-                    <MenuRow
-                      icon={Mail01Icon}
-                      label="Email"
-                      value={isGuest ? "Not linked" : clerkUser?.primaryEmailAddress?.emailAddress}
-                      showArrow={false}
-                    />
-                    <MenuRow
-                      icon={Shield01Icon}
-                      label="User ID"
-                      value={user?._id?.slice(0, 12) + "..."}
-                      showArrow={false}
-                    />
-                  </View>
-                </GlassView>
+            {/* Settings Sections */}
+            <View style={styles.sectionsContainer}>
+              {/* Account Section */}
+              <Text style={styles.sectionTitle}>Account</Text>
+              <View style={styles.sectionCard}>
+                <MenuRow
+                  icon="mail-outline"
+                  label="Email"
+                  value={isGuest ? "Not linked" : clerkUser?.primaryEmailAddress?.emailAddress}
+                />
+                <MenuRow icon="shield-outline" label="User ID" value={user?._id?.slice(0, 12) + "..."} isLast />
               </View>
 
-              {/* Legal */}
-              <View>
-                <Text className="text-white/40 text-[11px] font-generalsans-bold uppercase tracking-wider mb-3 ml-2">
-                  Legal
-                </Text>
-                <GlassView
-                  glassEffectStyle="regular"
-                  tintColor="#3A7AFE"
-                  style={{ borderRadius: 24, overflow: "hidden" }}
-                >
-                  <View className="px-5 py-1 bg-white/5">
-                    <MenuRow
-                      icon={Shield01Icon} // Using Shield as generic legal icon
-                      label="Terms of Use"
-                      onPress={() =>
-                        WebBrowser.openBrowserAsync("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")
-                      }
-                    />
-                    <MenuRow
-                      icon={Shield01Icon}
-                      label="Privacy Policy"
-                      onPress={() => router.push("/(legal)/privacy-policy")}
-                    />
-                  </View>
-                </GlassView>
+              {/* Legal Section */}
+              <Text style={styles.sectionTitle}>Legal</Text>
+              <View style={styles.sectionCard}>
+                <MenuRow
+                  icon="document-text-outline"
+                  label="Terms of Use"
+                  hasArrow
+                  onPress={() =>
+                    WebBrowser.openBrowserAsync(
+                      "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+                    )
+                  }
+                />
+                <MenuRow
+                  icon="lock-closed-outline"
+                  label="Privacy Policy"
+                  hasArrow
+                  onPress={() => router.push("/(legal)/privacy-policy")}
+                  isLast
+                />
               </View>
 
-              {/* Danger */}
-              <View className="mb-8">
-                <Text className="text-white/40 text-[11px] font-generalsans-bold uppercase tracking-wider mb-3 ml-2">
-                  Actions
-                </Text>
-                <GlassView
-                  glassEffectStyle="regular"
-                  tintColor="#3A7AFE"
-                  style={{ borderRadius: 24, overflow: "hidden" }}
-                >
-                  <View className="px-5 py-1 bg-white/5">
-                    <MenuRow
-                      icon={Logout01Icon}
-                      label="Log Out"
-                      onPress={handleSignOut}
-                    />
-                    <MenuRow
-                      icon={Delete02Icon}
-                      label={isDeleting ? "Deleting..." : "Delete Account"}
-                      isDestructive
-                      showArrow={false}
-                      onPress={handleDeleteAccount}
-                    />
-                  </View>
-                </GlassView>
+              {/* Actions Section */}
+              <Text style={styles.sectionTitle}>Actions</Text>
+              <View style={styles.sectionCard}>
+                <MenuRow icon="log-out-outline" label="Sign Out" hasArrow onPress={handleSignOut} />
+                <MenuRow
+                  icon="trash-outline"
+                  label={isDeleting ? "Deleting..." : "Delete Account"}
+                  isDestructive
+                  onPress={handleDeleteAccount}
+                  isLast
+                />
               </View>
             </View>
 
-            <Text className="text-center text-white/20 text-[11px] font-generalsans-medium pb-10">
-              Version {Constants.expoConfig?.version ?? "1.0.0"}
-            </Text>
+            {/* Version */}
+            <Text style={styles.version}>Version {Constants.expoConfig?.version ?? "1.0.0"}</Text>
           </View>
-
         </ScrollView>
       </SafeAreaView>
 
-
-
-      <PaywallModal
-        visible={paywallVisible}
-        onClose={() => setPaywallVisible(false)}
-      />
-
+      <PaywallModal visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
     </View>
   );
 }
+
+// Menu Row Component
+function MenuRow({
+  icon,
+  label,
+  value,
+  hasArrow,
+  isDestructive,
+  onPress,
+  isLast,
+}: {
+  icon: string;
+  label: string;
+  value?: string;
+  hasArrow?: boolean;
+  isDestructive?: boolean;
+  onPress?: () => void;
+  isLast?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+      style={[styles.menuRow, !isLast && styles.menuRowBorder]}
+    >
+      <View style={styles.menuLeft}>
+        <View style={[styles.menuIcon, isDestructive && { backgroundColor: "#FEE2E2" }]}>
+          <Ionicons name={icon as any} size={18} color={isDestructive ? "#EF4444" : TEXT_SECONDARY} />
+        </View>
+        <Text style={[styles.menuLabel, isDestructive && { color: "#EF4444" }]}>{label}</Text>
+      </View>
+      <View style={styles.menuRight}>
+        {value && <Text style={styles.menuValue} numberOfLines={1}>{value}</Text>}
+        {hasArrow && <Ionicons name="chevron-forward" size={18} color="#D1D5DB" />}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: BG_COLOR,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 22,
+    color: TEXT_PRIMARY,
+  },
+  profileCard: {
+    marginHorizontal: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  avatarContainer: {
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 3,
+    borderColor: ACCENT_ORANGE,
+  },
+  avatarPlaceholder: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: ACCENT_ORANGE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 36,
+    color: "#FFFFFF",
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  userName: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 24,
+    color: TEXT_PRIMARY,
+  },
+  premiumBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  premiumText: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 11,
+    color: "#D97706",
+  },
+  userEmail: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 14,
+    color: TEXT_SECONDARY,
+    marginBottom: 24,
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  statBox: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: "#E5E7EB",
+  },
+  statNum: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 22,
+    color: TEXT_PRIMARY,
+    marginTop: 4,
+  },
+  statLabel: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+  },
+  upgradeBanner: {
+    marginHorizontal: 20,
+    backgroundColor: ACCENT_ORANGE,
+    borderRadius: 20,
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 24,
+    shadowColor: ACCENT_ORANGE,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  upgradeTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 17,
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  upgradeSubtitle: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.85)",
+    lineHeight: 18,
+  },
+  upgradeArrow: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
+  sectionsContainer: {
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    fontFamily: "Nunito-Bold",
+    fontSize: 13,
+    color: TEXT_SECONDARY,
+    marginBottom: 10,
+    marginLeft: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  sectionCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    marginBottom: 20,
+    overflow: "hidden",
+  },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  menuRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  menuLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  menuIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuLabel: {
+    fontFamily: "Nunito-SemiBold",
+    fontSize: 15,
+    color: TEXT_PRIMARY,
+  },
+  menuRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  menuValue: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 13,
+    color: TEXT_SECONDARY,
+    maxWidth: 140,
+  },
+  version: {
+    fontFamily: "Nunito-Medium",
+    fontSize: 12,
+    color: "#D1D5DB",
+    textAlign: "center",
+    marginTop: 20,
+  },
+});
