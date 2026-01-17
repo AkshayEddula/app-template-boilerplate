@@ -4,6 +4,11 @@ import { Tabs } from 'expo-router';
 import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native-tabs';
 import { DynamicColorIOS, Platform, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
+// Theme
+const BG_COLOR = "#FAF9F6";
+const ACCENT_ORANGE = "#F97316";
+const TEXT_SECONDARY = "#6B7280";
+
 export default function TabsLayout() {
   const { width } = useWindowDimensions();
 
@@ -40,8 +45,8 @@ export default function TabsLayout() {
                 left: 8,
                 right: 8,
                 borderRadius: 26,
-                backgroundColor: '#FFEDD5',
-                shadowColor: '#3A7AFE',
+                backgroundColor: '#FFF7ED',
+                shadowColor: ACCENT_ORANGE,
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.15,
                 shadowRadius: 4,
@@ -73,10 +78,10 @@ export default function TabsLayout() {
             marginRight: horizontalMargin,
             width: tabBarWidth,
             height: 90,
-            borderRadius: 35,
-            backgroundColor: '#FFF9F5',
+            borderRadius: 999,
+            backgroundColor: '#FFFFFF',
             borderWidth: 1,
-            borderColor: '#E2E8F0',
+            borderColor: '#F3F4F6',
             elevation: 8,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 8 },
@@ -84,8 +89,8 @@ export default function TabsLayout() {
             shadowRadius: 16,
             overflow: 'hidden',
           },
-          tabBarActiveTintColor: '#3A7AFE',
-          tabBarInactiveTintColor: '#6B6B6B',
+          tabBarActiveTintColor: ACCENT_ORANGE,
+          tabBarInactiveTintColor: TEXT_SECONDARY,
           tabBarShowLabel: true,
           tabBarItemStyle: {
             flexDirection: 'column',
@@ -95,7 +100,7 @@ export default function TabsLayout() {
           },
           tabBarLabelStyle: {
             fontSize: 11,
-            fontFamily: 'GeneralSans-Semibold',
+            fontFamily: 'Nunito-Bold',
             marginTop: 4,
             marginBottom: 0,
           },
@@ -146,10 +151,10 @@ export default function TabsLayout() {
       tintColor={
         Platform.OS === 'ios'
           ? DynamicColorIOS({
-            light: '#3A7AFE',
-            dark: '#3A7AFE',
+            light: ACCENT_ORANGE,
+            dark: ACCENT_ORANGE,
           })
-          : '#3A7AFE' as any
+          : ACCENT_ORANGE as any
       }
       // Hides the tab bar when scrolling down (Native iOS feature)
       minimizeBehavior="onScrollDown"

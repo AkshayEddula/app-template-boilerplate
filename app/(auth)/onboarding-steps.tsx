@@ -471,66 +471,88 @@ export default function ResolutionOnboarding() {
 
         return (
             <Animated.View entering={FadeInRight.delay(100).springify()} exiting={FadeOutLeft} style={{ flex: 1 }}>
-                <View style={{ alignItems: 'center', marginBottom: 32 }}>
-                    <Text style={styles.reviewLabel}>REVIEW</Text>
-                    <Text style={styles.reviewTitle}>Ready to Commit?</Text>
-                    <Text style={styles.reviewSubtitle}>Your journey starts now</Text>
-                </View>
+                {/* Celebration Header */}
+                <Animated.View entering={FadeInDown.delay(200)} style={styles.celebrationHeader}>
+                    <Text style={styles.celebrationEmoji}>🎉</Text>
+                    <Text style={styles.celebrationTitle}>You're All Set!</Text>
+                    <Text style={styles.celebrationSubtitle}>Your transformation begins today</Text>
+                </Animated.View>
 
-                <View style={styles.summaryCard}>
-                    <View style={[styles.summaryHeader, { backgroundColor: catConfig.bgColor }]}>
-                        <View style={styles.summaryBadge}>
-                            <Text style={[styles.summaryBadgeText, { color: catConfig.color }]}>
-                                {selectedCategory?.toUpperCase()}
-                            </Text>
-                        </View>
-                        <Text style={{ fontSize: 32 }}>{catConfig.emoji}</Text>
+                {/* Main Goal Card */}
+                <Animated.View entering={FadeInDown.delay(300)} style={styles.goalCard}>
+                    {/* Category Icon Circle */}
+                    <View style={[styles.goalIconCircle, { backgroundColor: catConfig.bgColor }]}>
+                        <Text style={{ fontSize: 44 }}>{catConfig.emoji}</Text>
                     </View>
-                    <Text style={styles.summaryTitle}>
+
+                    {/* Category Badge */}
+                    <View style={[styles.goalBadge, { borderColor: catConfig.color }]}>
+                        <Text style={[styles.goalBadgeText, { color: catConfig.color }]}>
+                            {selectedCategory?.toUpperCase()}
+                        </Text>
+                    </View>
+
+                    {/* Goal Title */}
+                    <Text style={styles.goalTitle}>
                         {isCustom ? customTitle || 'New Goal' : selectedTemplate?.title}
                     </Text>
 
-                    <View style={styles.summaryStats}>
-                        <View style={styles.statBox}>
-                            <Text style={{ fontSize: 16 }}>📅</Text>
-                            <Text style={styles.statLabel}>Frequency</Text>
-                            <Text style={styles.statValue}>
-                                {frequencyType === 'daily' ? 'Daily' :
+                    {/* Stats Row */}
+                    <View style={styles.goalStats}>
+                        <View style={styles.goalStatItem}>
+                            <View style={styles.goalStatIcon}>
+                                <Text style={{ fontSize: 18 }}>📅</Text>
+                            </View>
+                            <Text style={styles.goalStatLabel}>Frequency</Text>
+                            <Text style={styles.goalStatValue}>
+                                {frequencyType === 'daily' ? 'Every Day' :
                                     frequencyType === 'weekdays' ? 'Weekdays' :
                                         frequencyType === 'weekends' ? 'Weekends' : 'Custom'}
                             </Text>
                         </View>
-                        <View style={styles.statBox}>
-                            <Text style={{ fontSize: 16 }}>🎯</Text>
-                            <Text style={styles.statLabel}>Target</Text>
-                            <Text style={styles.statValue}>
+                        <View style={styles.goalStatDivider} />
+                        <View style={styles.goalStatItem}>
+                            <View style={styles.goalStatIcon}>
+                                <Text style={{ fontSize: 18 }}>🎯</Text>
+                            </View>
+                            <Text style={styles.goalStatLabel}>Target</Text>
+                            <Text style={styles.goalStatValue}>
                                 {trackingType === 'yes_no' ? 'Complete' : trackingType === 'time_based' ? `${targetTime} Min` : `${targetCount} ${countUnit}`}
                             </Text>
                         </View>
                     </View>
+                </Animated.View>
 
-                    <View style={styles.hintBox}>
-                        <Text style={{ fontSize: 20 }}>🎴</Text>
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.hintTitle}>Complete to unlock characters</Text>
-                            <Text style={styles.hintSubtitle}>Build streaks and evolve your character</Text>
-                        </View>
+                {/* Reward Hint */}
+                <Animated.View entering={FadeInDown.delay(400)} style={styles.rewardHint}>
+                    <View style={styles.rewardIconBg}>
+                        <Text style={{ fontSize: 24 }}>🏆</Text>
                     </View>
-                </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.rewardTitle}>Unlock Characters & Rewards</Text>
+                        <Text style={styles.rewardSubtitle}>Complete daily goals to earn XP and evolve</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={TEXT_SECONDARY} />
+                </Animated.View>
 
-                <TouchableOpacity onPress={handleFinish} disabled={submitting} style={styles.finishButton} activeOpacity={0.8}>
-                    {submitting ? (
-                        <ActivityIndicator color="#FFF" />
-                    ) : (
-                        <>
-                            <Text style={styles.finishText}>Initialize Resolution</Text>
-                            <Ionicons name="arrow-forward" size={22} color="#FFF" />
-                        </>
-                    )}
-                </TouchableOpacity>
+                {/* CTA Button */}
+                <Animated.View entering={FadeInDown.delay(500)}>
+                    <TouchableOpacity onPress={handleFinish} disabled={submitting} style={styles.launchButton} activeOpacity={0.85}>
+                        {submitting ? (
+                            <ActivityIndicator color="#FFF" size="small" />
+                        ) : (
+                            <>
+                                <Text style={styles.launchText}>Launch My Journey</Text>
+                                <Text style={styles.launchEmoji}>🚀</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                </Animated.View>
 
-                <TouchableOpacity onPress={() => setStep(4)} style={{ alignItems: 'center', paddingVertical: 16 }}>
-                    <Text style={styles.editLink}>Edit Details</Text>
+                {/* Edit Link */}
+                <TouchableOpacity onPress={() => setStep(4)} style={styles.editRow}>
+                    <Ionicons name="pencil" size={14} color={TEXT_SECONDARY} />
+                    <Text style={styles.editText}>Edit Details</Text>
                 </TouchableOpacity>
             </Animated.View>
         );
@@ -1037,5 +1059,167 @@ const styles = StyleSheet.create({
         color: TEXT_SECONDARY,
         textTransform: 'uppercase',
         letterSpacing: 1,
+    },
+    // New Summary Screen Styles
+    celebrationHeader: {
+        alignItems: 'center',
+        marginBottom: 28,
+    },
+    celebrationEmoji: {
+        fontSize: 56,
+        marginBottom: 12,
+    },
+    celebrationTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 28,
+        color: TEXT_PRIMARY,
+        marginBottom: 6,
+    },
+    celebrationSubtitle: {
+        fontFamily: 'Nunito-Medium',
+        fontSize: 15,
+        color: TEXT_SECONDARY,
+    },
+    goalCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 32,
+        padding: 28,
+        alignItems: 'center',
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.08,
+        shadowRadius: 24,
+        elevation: 6,
+    },
+    goalIconCircle: {
+        width: 88,
+        height: 88,
+        borderRadius: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    goalBadge: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 999,
+        borderWidth: 1,
+        marginBottom: 12,
+    },
+    goalBadgeText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 11,
+        letterSpacing: 1.5,
+    },
+    goalTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 22,
+        color: TEXT_PRIMARY,
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    goalStats: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+        borderRadius: 20,
+        padding: 16,
+        width: '100%',
+    },
+    goalStatItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    goalStatIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8,
+    },
+    goalStatLabel: {
+        fontFamily: 'Nunito-Medium',
+        fontSize: 11,
+        color: TEXT_SECONDARY,
+        marginBottom: 2,
+    },
+    goalStatValue: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 14,
+        color: TEXT_PRIMARY,
+    },
+    goalStatDivider: {
+        width: 1,
+        height: 40,
+        backgroundColor: '#E5E7EB',
+        marginHorizontal: 12,
+    },
+    rewardHint: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 999,
+        padding: 16,
+        paddingRight: 20,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    rewardIconBg: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#FEF3C7',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 14,
+    },
+    rewardTitle: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 14,
+        color: TEXT_PRIMARY,
+    },
+    rewardSubtitle: {
+        fontFamily: 'Nunito-Medium',
+        fontSize: 12,
+        color: TEXT_SECONDARY,
+        marginTop: 2,
+    },
+    launchButton: {
+        backgroundColor: ACCENT_ORANGE,
+        borderRadius: 999,
+        paddingVertical: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        shadowColor: ACCENT_ORANGE,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.4,
+        shadowRadius: 20,
+        elevation: 8,
+    },
+    launchText: {
+        fontFamily: 'Nunito-Bold',
+        fontSize: 18,
+        color: '#FFFFFF',
+    },
+    launchEmoji: {
+        fontSize: 22,
+    },
+    editRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 18,
+        gap: 6,
+    },
+    editText: {
+        fontFamily: 'Nunito-SemiBold',
+        fontSize: 14,
+        color: TEXT_SECONDARY,
     },
 });

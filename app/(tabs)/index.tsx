@@ -398,7 +398,7 @@ export default function HomeScreen() {
           {/* Daily Routine Header */}
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, marginBottom: 12 }}>
             <Text style={{ fontFamily: "Nunito-Bold", fontSize: 20, color: TEXT_PRIMARY }}>
-              Daily routine
+              Daily resolutions
             </Text>
             <TouchableOpacity
               onPress={() => router.push("/create")}
