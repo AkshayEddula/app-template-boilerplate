@@ -11,6 +11,7 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Keyboard,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -18,6 +19,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
+    TouchableWithoutFeedback,
     View,
 } from 'react-native';
 import Animated, {
@@ -128,7 +130,7 @@ export default function CreateResolution() {
 
     const handleCreate = async () => {
         const currentCount = isGuest ? guestResolutions.length : (resolutions?.length || 0);
-        if (!isPremium && currentCount >= 2) {
+        if (!isPremium && currentCount >= 1) {
             setPaywallVisible(true);
             return;
         }
@@ -190,156 +192,163 @@ export default function CreateResolution() {
                     <View style={{ width: 48 }} />
                 </View>
 
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                    <ScrollView
-                        style={{ flex: 1 }}
-                        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }}
-                        showsVerticalScrollIndicator={false}
-                    >
-                        {/* FOCUS AREA */}
-                        <Text style={styles.label}>🎯 Focus Area</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }}>
-                            <View style={styles.categoryRow}>
-                                {categories?.map((cat: any) => {
-                                    const config = CATEGORY_CONFIG[cat.key] || { emoji: "✨", color: ACCENT_ORANGE, bg: "#FFF7ED" };
-                                    const isSelected = selectedCategory === cat.key;
-                                    return (
-                                        <TouchableOpacity
-                                            key={cat.key}
-                                            onPress={() => { setSelectedCategory(cat.key); setSelectedTemplateId(null); }}
-                                            style={[
-                                                styles.categoryPill,
-                                                isSelected && { backgroundColor: config.color, borderColor: config.color }
-                                            ]}
-                                            activeOpacity={0.7}
-                                        >
-                                            <Text style={{ fontSize: 20 }}>{config.emoji}</Text>
-                                            <Text style={[styles.categoryText, isSelected && { color: '#FFF' }]}>
-                                                {cat.name}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-                        </ScrollView>
-
-                        {/* TEMPLATES */}
-                        {selectedCategory && templates && templates.length > 0 && (
-                            <>
-                                <Text style={styles.label}>⚡ Quick Pick</Text>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }}>
-                                    <View style={styles.templateRow}>
-                                        <TouchableOpacity
-                                            onPress={() => { setSelectedTemplateId(null); setTitle(''); }}
-                                            style={[styles.templatePill, !selectedTemplateId && styles.templatePillActive]}
-                                        >
-                                            <Text style={{ fontSize: 16 }}>✏️</Text>
-                                            <Text style={[styles.templateText, !selectedTemplateId && { color: '#FFF' }]}>Custom</Text>
-                                        </TouchableOpacity>
-                                        {templates.map((t: any) => (
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+                >
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+                        <ScrollView
+                            style={{ flex: 1 }}
+                            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }}
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
+                        >
+                            {/* FOCUS AREA */}
+                            <Text style={styles.label}>🎯 Focus Area</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }}>
+                                <View style={styles.categoryRow}>
+                                    {categories?.map((cat: any) => {
+                                        const config = CATEGORY_CONFIG[cat.key] || { emoji: "✨", color: ACCENT_ORANGE, bg: "#FFF7ED" };
+                                        const isSelected = selectedCategory === cat.key;
+                                        return (
                                             <TouchableOpacity
-                                                key={t._id}
-                                                onPress={() => handleSelectTemplate(t)}
-                                                style={[styles.templatePill, selectedTemplateId === t._id && styles.templatePillActive]}
+                                                key={cat.key}
+                                                onPress={() => { setSelectedCategory(cat.key); setSelectedTemplateId(null); }}
+                                                style={[
+                                                    styles.categoryPill,
+                                                    isSelected && { backgroundColor: config.color, borderColor: config.color }
+                                                ]}
+                                                activeOpacity={0.7}
                                             >
-                                                <Text style={{ fontSize: 16 }}>💡</Text>
-                                                <Text numberOfLines={1} style={[styles.templateText, selectedTemplateId === t._id && { color: '#FFF' }]}>
-                                                    {t.title}
+                                                <Text style={{ fontSize: 20 }}>{config.emoji}</Text>
+                                                <Text style={[styles.categoryText, isSelected && { color: '#FFF' }]}>
+                                                    {cat.name}
                                                 </Text>
                                             </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </ScrollView>
-                            </>
-                        )}
-
-                        {/* GOAL TITLE */}
-                        <Text style={styles.label}>📝 Goal Name</Text>
-                        <View style={styles.inputContainer}>
-                            <TextInput
-                                placeholder="What's your goal?"
-                                placeholderTextColor={TEXT_SECONDARY}
-                                value={title}
-                                onChangeText={(t) => { setTitle(t); setSelectedTemplateId(null); }}
-                                style={styles.input}
-                            />
-                        </View>
-
-                        {/* FREQUENCY */}
-                        <Text style={styles.label}>📅 How Often?</Text>
-                        <View style={styles.frequencyGrid}>
-                            {[
-                                { k: 'daily', l: 'Daily', e: '�' },
-                                { k: 'weekdays', l: 'Weekdays', e: '💼' },
-                                { k: 'weekends', l: 'Weekends', e: '🌴' },
-                                { k: 'custom', l: 'Custom', e: '⚙️' },
-                            ].map((f) => (
-                                <TouchableOpacity
-                                    key={f.k}
-                                    onPress={() => setFrequency(f.k)}
-                                    style={[styles.freqPill, frequency === f.k && styles.freqPillActive]}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text style={{ fontSize: 18 }}>{f.e}</Text>
-                                    <Text style={[styles.freqText, frequency === f.k && { color: '#FFF' }]}>{f.l}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                        {frequency === 'custom' && (
-                            <DaySelector selectedDays={customDays} toggleDay={toggleCustomDay} setCustomDays={setCustomDays} />
-                        )}
-
-                        {/* TRACKING */}
-                        <Text style={styles.label}>📊 Track By</Text>
-                        <View style={styles.trackingGrid}>
-                            {[
-                                { k: 'yes_no', l: 'Check-in', e: '✅' },
-                                { k: 'count_based', l: 'Count', e: '🔢' },
-                                { k: 'time_based', l: 'Timer', e: '⏱️' },
-                            ].map((t) => (
-                                <TouchableOpacity
-                                    key={t.k}
-                                    onPress={() => setTrackingType(t.k)}
-                                    style={[styles.trackPill, trackingType === t.k && styles.trackPillActive]}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text style={{ fontSize: 26 }}>{t.e}</Text>
-                                    <Text style={[styles.trackText, trackingType === t.k && styles.trackTextActive]}>{t.l}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-
-                        {/* TARGET */}
-                        {trackingType !== 'yes_no' && (
-                            <Animated.View entering={FadeInUp.duration(200)} style={styles.targetContainer}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.miniLabel}>{trackingType === 'time_based' ? 'Minutes' : 'Target'}</Text>
-                                    <View style={styles.targetInput}>
-                                        <TextInput
-                                            keyboardType="numeric"
-                                            value={targetValue}
-                                            onChangeText={setTargetValue}
-                                            style={styles.targetText}
-                                        />
-                                    </View>
+                                        );
+                                    })}
                                 </View>
-                                {trackingType === 'count_based' && (
+                            </ScrollView>
+
+                            {/* TEMPLATES */}
+                            {selectedCategory && templates && templates.length > 0 && (
+                                <>
+                                    <Text style={styles.label}>⚡ Quick Pick</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }}>
+                                        <View style={styles.templateRow}>
+                                            <TouchableOpacity
+                                                onPress={() => { setSelectedTemplateId(null); setTitle(''); }}
+                                                style={[styles.templatePill, !selectedTemplateId && styles.templatePillActive]}
+                                            >
+                                                <Text style={{ fontSize: 16 }}>✏️</Text>
+                                                <Text style={[styles.templateText, !selectedTemplateId && { color: '#FFF' }]}>Custom</Text>
+                                            </TouchableOpacity>
+                                            {templates.map((t: any) => (
+                                                <TouchableOpacity
+                                                    key={t._id}
+                                                    onPress={() => handleSelectTemplate(t)}
+                                                    style={[styles.templatePill, selectedTemplateId === t._id && styles.templatePillActive]}
+                                                >
+                                                    <Text style={{ fontSize: 16 }}>💡</Text>
+                                                    <Text numberOfLines={1} style={[styles.templateText, selectedTemplateId === t._id && { color: '#FFF' }]}>
+                                                        {t.title}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </ScrollView>
+                                </>
+                            )}
+
+                            {/* GOAL TITLE */}
+                            <Text style={styles.label}>📝 Goal Name</Text>
+                            <View style={styles.inputContainer}>
+                                <TextInput
+                                    placeholder="What's your goal?"
+                                    placeholderTextColor={TEXT_SECONDARY}
+                                    value={title}
+                                    onChangeText={(t) => { setTitle(t); setSelectedTemplateId(null); }}
+                                    style={styles.input}
+                                />
+                            </View>
+
+                            {/* FREQUENCY */}
+                            <Text style={styles.label}>📅 How Often?</Text>
+                            <View style={styles.frequencyGrid}>
+                                {[
+                                    { k: 'daily', l: 'Daily', e: '�' },
+                                    { k: 'weekdays', l: 'Weekdays', e: '💼' },
+                                    { k: 'weekends', l: 'Weekends', e: '🌴' },
+                                    { k: 'custom', l: 'Custom', e: '⚙️' },
+                                ].map((f) => (
+                                    <TouchableOpacity
+                                        key={f.k}
+                                        onPress={() => setFrequency(f.k)}
+                                        style={[styles.freqPill, frequency === f.k && styles.freqPillActive]}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={{ fontSize: 18 }}>{f.e}</Text>
+                                        <Text style={[styles.freqText, frequency === f.k && { color: '#FFF' }]}>{f.l}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            {frequency === 'custom' && (
+                                <DaySelector selectedDays={customDays} toggleDay={toggleCustomDay} setCustomDays={setCustomDays} />
+                            )}
+
+                            {/* TRACKING */}
+                            <Text style={styles.label}>📊 Track By</Text>
+                            <View style={styles.trackingGrid}>
+                                {[
+                                    { k: 'yes_no', l: 'Check-in', e: '✅' },
+                                    { k: 'count_based', l: 'Count', e: '🔢' },
+                                    { k: 'time_based', l: 'Timer', e: '⏱️' },
+                                ].map((t) => (
+                                    <TouchableOpacity
+                                        key={t.k}
+                                        onPress={() => setTrackingType(t.k)}
+                                        style={[styles.trackPill, trackingType === t.k && styles.trackPillActive]}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={{ fontSize: 26 }}>{t.e}</Text>
+                                        <Text style={[styles.trackText, trackingType === t.k && styles.trackTextActive]}>{t.l}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* TARGET */}
+                            {trackingType !== 'yes_no' && (
+                                <Animated.View entering={FadeInUp.duration(200)} style={styles.targetContainer}>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={styles.miniLabel}>Unit</Text>
+                                        <Text style={styles.miniLabel}>{trackingType === 'time_based' ? 'Minutes' : 'Target'}</Text>
                                         <View style={styles.targetInput}>
                                             <TextInput
-                                                placeholder="cups"
-                                                placeholderTextColor={TEXT_SECONDARY}
-                                                value={countUnit}
-                                                onChangeText={setCountUnit}
+                                                keyboardType="numeric"
+                                                value={targetValue}
+                                                onChangeText={setTargetValue}
                                                 style={styles.targetText}
                                             />
                                         </View>
                                     </View>
-                                )}
-                            </Animated.View>
-                        )}
-                    </ScrollView>
+                                    {trackingType === 'count_based' && (
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.miniLabel}>Unit</Text>
+                                            <View style={styles.targetInput}>
+                                                <TextInput
+                                                    placeholder="cups"
+                                                    placeholderTextColor={TEXT_SECONDARY}
+                                                    value={countUnit}
+                                                    onChangeText={setCountUnit}
+                                                    style={styles.targetText}
+                                                />
+                                            </View>
+                                        </View>
+                                    )}
+                                </Animated.View>
+                            )}
+                        </ScrollView>
+                    </TouchableWithoutFeedback>
                 </KeyboardAvoidingView>
 
                 {/* CREATE BUTTON */}

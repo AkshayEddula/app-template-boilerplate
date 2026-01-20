@@ -296,6 +296,7 @@ export const TrackingModal = ({
   readOnly = false,
   onLevelUp,
   currentCategoryXp = 0,
+  onSaveSuccess,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -304,6 +305,7 @@ export const TrackingModal = ({
   readOnly?: boolean;
   onLevelUp: (categoryKey: string, newTotalXp: number, oldTotalXp: number) => void;
   currentCategoryXp?: number;
+  onSaveSuccess?: () => void;
 }) => {
   const logProgress = useMutation(api.resolutions.logProgress);
   const editResolution = useMutation(api.resolutions.edit);
@@ -394,6 +396,10 @@ export const TrackingModal = ({
       if (isGuest) {
         await logGuestProgress(resolution._id, new Date().toISOString().split("T")[0], finalValue);
         onClose();
+        // Call onSaveSuccess for guest users too
+        if (onSaveSuccess) {
+          setTimeout(() => onSaveSuccess(), 300);
+        }
         return;
       }
       const result = await logProgress({
@@ -404,6 +410,10 @@ export const TrackingModal = ({
       onClose();
       if (result && result.newDailyXp > 0) {
         setTimeout(() => onLevelUp(resolution.categoryKey, result.totalCategoryXp, currentCategoryXp), 300);
+      }
+      // Call onSaveSuccess after successful save
+      if (onSaveSuccess) {
+        setTimeout(() => onSaveSuccess(), 500);
       }
     } catch (e) {
       Alert.alert("Error", "Failed to save progress");

@@ -226,49 +226,75 @@ export const PaywallModal = ({
                     const trialInfo = getTrialInfo(pkg);
                     const isAnnual = pkg.packageType === "ANNUAL";
 
+                    // Calculate per-week/month savings for annual plans
+                    const getPerPeriodPrice = () => {
+                      if (!isAnnual || !pkg.product.price) return null;
+                      const yearlyPrice = pkg.product.price;
+                      const monthlyPrice = (yearlyPrice / 12).toFixed(2);
+                      return `$${monthlyPrice}/mo`;
+                    };
+
+                    // Get billing period text
+                    const getBillingText = () => {
+                      if (trialInfo?.hasTrial && trialInfo.trialDays > 0) {
+                        return `Then ${trialInfo.regularPrice}/${isAnnual ? "year" : pkg.packageType === "WEEKLY" ? "week" : "month"}`;
+                      }
+                      if (isAnnual) return `Only ${getPerPeriodPrice()}/month`;
+                      if (pkg.packageType === "WEEKLY") return "Billed weekly";
+                      return "Billed monthly";
+                    };
+
                     return (
                       <TouchableOpacity
                         key={pkg.identifier}
                         onPress={() => setSelectedPkg(pkg)}
-                        activeOpacity={0.8}
-                        style={[styles.packageCard, isSelected && styles.packageCardSelected]}
+                        activeOpacity={0.85}
+                        style={[
+                          styles.packageCard,
+                          isSelected && styles.packageCardSelected,
+                          isAnnual && styles.packageCardAnnual
+                        ]}
                       >
+                        {/* Best Value Badge for Annual */}
                         {isAnnual && (
                           <View style={styles.bestValueBadge}>
-                            <Text style={styles.bestValueText}>BEST VALUE</Text>
-                          </View>
-                        )}
-
-                        {trialInfo?.hasTrial && trialInfo.trialDays > 0 && (
-                          <View style={styles.trialBadge}>
-                            <Text style={styles.trialBadgeText}>{trialInfo.trialDays} days free</Text>
+                            <Text style={styles.bestValueText}>⭐ BEST VALUE</Text>
                           </View>
                         )}
 
                         <View style={styles.packageContent}>
+                          {/* Checkmark/Radio */}
                           <View style={[styles.radio, isSelected && styles.radioSelected]}>
-                            {isSelected && <View style={styles.radioInner} />}
+                            {isSelected && (
+                              <Ionicons name="checkmark" size={14} color="#FFF" />
+                            )}
                           </View>
 
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.packageTitle}>
-                              {isAnnual ? "Yearly" : pkg.packageType === "WEEKLY" ? "Weekly" : "Monthly"}
-                            </Text>
-                            {trialInfo?.hasTrial && trialInfo.trialDays > 0 && (
-                              <Text style={styles.packageSub}>
-                                Then {trialInfo.regularPrice}/{isAnnual ? "year" : "month"}
+                          {/* Plan info */}
+                          <View style={styles.packageInfo}>
+                            <View style={styles.packageTitleRow}>
+                              <Text style={[styles.packageTitle, isSelected && styles.packageTitleSelected]}>
+                                {isAnnual ? "Yearly" : pkg.packageType === "WEEKLY" ? "Weekly" : "Monthly"}
                               </Text>
-                            )}
+                              {/* Trial pill inline */}
+                              {trialInfo?.hasTrial && trialInfo.trialDays > 0 && (
+                                <View style={[styles.trialPill, isSelected && styles.trialPillSelected]}>
+                                  <Text style={styles.trialPillText}>
+                                    {trialInfo.trialDays} DAYS FREE
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.packageSub}>{getBillingText()}</Text>
                           </View>
 
-                          <View style={{ alignItems: "flex-end" }}>
-                            {trialInfo?.hasTrial && trialInfo.trialDays > 0 ? (
-                              <Text style={styles.packagePrice}>Free</Text>
-                            ) : (
-                              <Text style={styles.packagePrice}>{pkg.product.priceString}</Text>
-                            )}
+                          {/* Price */}
+                          <View style={styles.packagePriceContainer}>
+                            <Text style={[styles.packagePrice, isSelected && styles.packagePriceSelected]}>
+                              {pkg.product.priceString}
+                            </Text>
                             <Text style={styles.packagePer}>
-                              /{isAnnual ? "year" : pkg.packageType === "WEEKLY" ? "week" : "month"}
+                              /{isAnnual ? "year" : pkg.packageType === "WEEKLY" ? "week" : "mo"}
                             </Text>
                           </View>
                         </View>
@@ -577,21 +603,40 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
-  trialBadge: {
-    position: "absolute",
-    top: -10,
-    right: 16,
-    backgroundColor: "#FEF3C7",
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#FDE68A",
+  packageCardAnnual: {
+    marginTop: 8,
   },
-  trialBadgeText: {
+  packageInfo: {
+    flex: 1,
+  },
+  packageTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  packageTitleSelected: {
+    color: ACCENT_ORANGE,
+  },
+  trialPill: {
+    backgroundColor: "#E0F2FE",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  trialPillSelected: {
+    backgroundColor: "#FED7AA",
+  },
+  trialPillText: {
     fontFamily: "Nunito-Bold",
-    fontSize: 11,
-    color: "#D97706",
+    fontSize: 9,
+    color: "#0369A1",
+    letterSpacing: 0.3,
+  },
+  packagePriceContainer: {
+    alignItems: "flex-end",
+  },
+  packagePriceSelected: {
+    color: ACCENT_ORANGE,
   },
   packageContent: {
     flexDirection: "row",
@@ -609,11 +654,6 @@ const styles = StyleSheet.create({
   },
   radioSelected: {
     borderColor: ACCENT_ORANGE,
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
     backgroundColor: ACCENT_ORANGE,
   },
   packageTitle: {

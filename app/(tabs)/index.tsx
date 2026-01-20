@@ -530,6 +530,12 @@ export default function HomeScreen() {
         currentCategoryXp={
           allCards?.find((c) => c.categoryKey === selectedResolution?.categoryKey)?.currentXp || 0
         }
+        onSaveSuccess={() => {
+          // Show paywall to free users after they save progress
+          if (!isPremium) {
+            setTimeout(() => setPaywallVisible(true), 800);
+          }
+        }}
       />
 
       <LevelUpOverlay

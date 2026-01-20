@@ -11,6 +11,7 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Keyboard,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -18,6 +19,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
+    TouchableWithoutFeedback,
     View
 } from 'react-native';
 import Animated, {
@@ -574,28 +576,35 @@ export default function ResolutionOnboarding() {
                     <View style={{ width: 44 }} />
                 </View>
 
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                    <ScrollView
-                        style={{ flex: 1, paddingHorizontal: 24 }}
-                        showsVerticalScrollIndicator={false}
-                        contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, paddingTop: 8 }}
-                    >
-                        <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
-                            {isGuestLoading ? (
-                                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 }}>
-                                    <ActivityIndicator size="large" color={ACCENT_ORANGE} />
-                                </View>
-                            ) : (
-                                <>
-                                    {step === 1 && renderStep1_Categories()}
-                                    {step === 2 && renderStep2_Templates()}
-                                    {step === 3 && renderStep3_Frequency()}
-                                    {step === 4 && renderStep4_Tracking()}
-                                    {step === 5 && renderStep5_Summary()}
-                                </>
-                            )}
-                        </View>
-                    </ScrollView>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+                >
+                    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+                        <ScrollView
+                            style={{ flex: 1, paddingHorizontal: 24 }}
+                            showsVerticalScrollIndicator={false}
+                            contentContainerStyle={{ flexGrow: 1, paddingBottom: 40, paddingTop: 8 }}
+                            keyboardShouldPersistTaps="handled"
+                        >
+                            <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+                                {isGuestLoading ? (
+                                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 }}>
+                                        <ActivityIndicator size="large" color={ACCENT_ORANGE} />
+                                    </View>
+                                ) : (
+                                    <>
+                                        {step === 1 && renderStep1_Categories()}
+                                        {step === 2 && renderStep2_Templates()}
+                                        {step === 3 && renderStep3_Frequency()}
+                                        {step === 4 && renderStep4_Tracking()}
+                                        {step === 5 && renderStep5_Summary()}
+                                    </>
+                                )}
+                            </View>
+                        </ScrollView>
+                    </TouchableWithoutFeedback>
                 </KeyboardAvoidingView>
             </SafeAreaView>
 
